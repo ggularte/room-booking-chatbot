@@ -26,7 +26,6 @@ public sealed class AssistantIntegrationTests : IDisposable
     private readonly SqliteConnection _connection;
     private readonly BookingDbContext _db;
     private readonly BookingService _service;
-    private readonly string? _apiKey = Environment.GetEnvironmentVariable("GROQ_API_KEY");
 
     private sealed class FixedUser(string id) : IUserContext
     {
@@ -49,29 +48,11 @@ public sealed class AssistantIntegrationTests : IDisposable
         _connection.Dispose();
     }
 
-    /// <summary>
-    /// True when the live provider can be reached. Fails outright, rather than skipping, when the
-    /// caller declared that these tests must run.
-    /// </summary>
-    private bool LiveProviderAvailable
-    {
-        get
-        {
-            if (!string.IsNullOrWhiteSpace(_apiKey))
-                return true;
-
-            Assert.False(
-                Environment.GetEnvironmentVariable("REQUIRE_LIVE_TESTS") == "1",
-                "REQUIRE_LIVE_TESTS=1 but GROQ_API_KEY is not set, so the live tests could not run.");
-
-            return false;
-        }
-    }
 
     private BookingAssistant Assistant()
     {
         var openAi = new OpenAIClient(
-            new ApiKeyCredential(_apiKey!),
+            new ApiKeyCredential(LiveModel.ApiKey!),
             new OpenAIClientOptions { Endpoint = new Uri("https://api.groq.com/openai/v1") });
 
         var chat = new ChatClientBuilder(openAi.GetChatClient(Model).AsIChatClient())
@@ -84,7 +65,7 @@ public sealed class AssistantIntegrationTests : IDisposable
     [Fact]
     public async Task Books_a_room_from_a_plain_language_request()
     {
-        if (!LiveProviderAvailable) return;
+        if (!LiveModel.Available) return;
 
         var history = new List<ChatMessage>
         {
@@ -105,7 +86,7 @@ public sealed class AssistantIntegrationTests : IDisposable
     [Fact]
     public async Task Refuses_a_booking_that_breaks_a_rule_and_stores_nothing()
     {
-        if (!LiveProviderAvailable) return;
+        if (!LiveModel.Available) return;
 
         var history = new List<ChatMessage>
         {

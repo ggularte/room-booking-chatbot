@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.AI;
 
 namespace RoomBooking.Agent;
@@ -27,8 +28,15 @@ public sealed class BookingAssistant(IChatClient chat, BookingTools tools, TimeP
     public async Task<ChatResponse> ContinueAsync(
         List<ChatMessage> history, string username, CancellationToken ct = default)
     {
-        if (history.Count == 0 || history[0].Role != ChatRole.System)
-            history.Insert(0, new ChatMessage(ChatRole.System, SystemPrompt(username)));
+        // Rebuilt every turn, not just on the first. The prompt carries the current date and time,
+        // and a conversation that started before midnight would otherwise resolve "tomorrow" against
+        // the wrong day for as long as it stayed open.
+        var instructions = new ChatMessage(ChatRole.System, SystemPrompt(username));
+
+        if (history.Count > 0 && history[0].Role == ChatRole.System)
+            history[0] = instructions;
+        else
+            history.Insert(0, instructions);
 
         var response = await chat.GetResponseAsync(history, _options, ct);
         history.AddMessages(response);
@@ -37,7 +45,13 @@ public sealed class BookingAssistant(IChatClient chat, BookingTools tools, TimeP
 
     private string SystemPrompt(string username)
     {
-        var today = clock.GetLocalNow().DateTime;
+        var now = clock.GetLocalNow().DateTime;
+
+        // Formatted invariantly rather than with the host's culture. Otherwise the same deployment
+        // describes the date in whatever language the server happens to be configured for, which
+        // is both non-deterministic and at odds with the rest of these instructions.
+        var date = now.ToString("dddd, d MMMM yyyy", CultureInfo.InvariantCulture);
+        var time = now.ToString("HH:mm", CultureInfo.InvariantCulture);
 
         return $"""
         You are the meeting room assistant for the Promtior office at Cubo Itaú.
@@ -49,7 +63,7 @@ public sealed class BookingAssistant(IChatClient chat, BookingTools tools, TimeP
         out, never guess one. Bookings run in 30-minute slots, must start and end on the hour or the
         half hour, and may last at most 3 hours. A booking that ends at 11:30 leaves 11:30 free.
 
-        Today is {today:dddd, d MMMM yyyy} and the time is {today:HH:mm}. Resolve relative dates such
+        Today is {date} and the time is {time}. Resolve relative dates such
         as "tomorrow" or "next Tuesday" against that. Express every time as plain office local time,
         for example 2026-09-01T14:30:00, with no timezone offset or trailing Z.
 
