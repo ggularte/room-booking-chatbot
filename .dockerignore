@@ -1,0 +1,16 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/.idea/
+**/*.user
+.git/
+.gitignore
+doc/
+notebook/
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+README.md

@@ -82,6 +82,47 @@ Booking constraints — slot contiguity, the 3-hour cap, room capacity, overlap 
 are enforced in `RoomBooking.Core`, not in the system prompt. The tools return structured
 errors and the assistant relays them. A model is not a validation layer.
 
+## Running it
+
+Requires the .NET 10 SDK and a Groq API key, which is free and needs no card:
+<https://console.groq.com>.
+
+```bash
+cd src/RoomBooking.Web
+dotnet user-secrets set "Groq:ApiKey" "<your key>"
+cd ../..
+dotnet run --project src/RoomBooking.Web --launch-profile https
+```
+
+Then open <https://localhost:7264> and sign in as `User1` or `User2` with the password
+`TechnicalChallengePromtior`. The database is created and seeded on first run, so there
+is no migration step.
+
+### Tests
+
+```bash
+dotnet test
+```
+
+Two of the tests drive the live model end to end and are skipped when `GROQ_API_KEY` is
+absent, so the suite runs offline. To make their absence a failure instead, set
+`REQUIRE_LIVE_TESTS=1`.
+
+```bash
+GROQ_API_KEY="<your key>" REQUIRE_LIVE_TESTS=1 dotnet test
+```
+
+### Container
+
+```bash
+docker build -t room-booking .
+docker run -p 8080:8080 -e Groq__ApiKey="<your key>" -v room-booking-data:/data room-booking
+```
+
+The volume matters: the database lives at `/data`, and a container filesystem does not
+survive a redeploy. On Railway, mount a volume at `/data` and set `Groq__ApiKey` as a
+service variable.
+
 ## Assumptions
 
 **Room capacities.** The challenge requires room-specific capacities but never states the

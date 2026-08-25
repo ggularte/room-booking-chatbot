@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using RoomBooking.Agent;
 using RoomBooking.Core.Bookings;
@@ -8,6 +9,27 @@ using RoomBooking.Web.Auth;
 using RoomBooking.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Platforms like Railway, Render and Fly assign the port at runtime and pass it in PORT. Without
+// this the container listens on the default port and the platform's health check never answers.
+//
+// It only applies when nothing more specific was configured. PORT is a common variable to have
+// lying around locally, and letting it override an explicit ASPNETCORE_URLS would silently drop
+// the launch profile's HTTPS endpoint.
+var assignedPort = Environment.GetEnvironmentVariable("PORT");
+var configuredUrls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+
+if (!string.IsNullOrWhiteSpace(assignedPort) && string.IsNullOrWhiteSpace(configuredUrls))
+    builder.WebHost.UseUrls($"http://+:{assignedPort}");
+
+// TLS terminates at the platform's proxy, so the app sees plain HTTP. Without the forwarded
+// headers it would consider the request insecure and refuse to issue the auth cookie.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -29,6 +51,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.AccessDeniedPath = "/login";
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.SlidingExpiration = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
     });
 
 builder.Services.AddAuthorization();
@@ -64,14 +87,21 @@ await using (var scope = app.Services.CreateAsyncScope())
     await db.Database.EnsureCreatedAsync();
 }
 
+app.UseForwardedHeaders();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
     app.UseHsts();
 }
+else
+{
+    // Only in development, where the app terminates TLS itself. In a container the proxy already
+    // did, and redirecting to a port the app does not serve produces a loop.
+    app.UseHttpsRedirection();
+}
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -84,6 +114,9 @@ app.MapPost("/logout", async (HttpContext context) =>
     await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.Redirect("/login");
 });
+
+// Somewhere for the platform's health check to land that does not require a session.
+app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
