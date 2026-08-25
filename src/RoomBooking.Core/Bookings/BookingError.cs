@@ -14,4 +14,5 @@ public enum BookingError
     AttendeesMustBePositive,
     ExceedsRoomCapacity,
     OverlapsExistingBooking,
+    EndsInThePast,
 }

@@ -18,6 +18,8 @@ and cancel meeting rooms through natural conversation.
 - Every appointment requires a **title** and a **number of attendees**, which may not
   exceed the room's capacity.
 - Two users, `User1` and `User2`, authenticate with a shared password.
+- A booking that has already ended is refused. This one is not in the challenge; see
+  Assumptions.
 
 ### Assistant tools
 
@@ -138,3 +140,9 @@ They live in `SeedData.Rooms` and changing them requires no other edit.
 
 **Time zone.** Bookings are stored and compared as wall-clock times in a single office time
 zone. The challenge describes one office, so no conversion is modelled.
+
+**Bookings in the past.** The challenge lists its constraints explicitly and says nothing
+about the past, so a reservation for last Tuesday would otherwise be as valid as one for
+tomorrow. That reads as unfinished, so bookings that have already *ended* are refused —
+and only those. A meeting that began ten minutes ago is still worth recording, and a
+stricter rule risked rejecting a case the challenge intends to work.

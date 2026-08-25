@@ -26,7 +26,7 @@ public sealed class BookingServiceTests : IDisposable
 
         _db = new BookingDbContext(options);
         _db.Database.EnsureCreated();
-        _service = new BookingService(new TestDbContextFactory(options));
+        _service = new BookingService(new TestDbContextFactory(options), new FixedClock(Now));
     }
 
     public void Dispose()
@@ -34,6 +34,8 @@ public sealed class BookingServiceTests : IDisposable
         _db.Dispose();
         _connection.Dispose();
     }
+
+    private static readonly DateTime Now = new(2026, 9, 1, 8, 0, 0);
 
     private static DateTime At(int hour, int minute = 0) => new(2026, 9, 1, hour, minute, 0);
 
@@ -182,6 +184,15 @@ public sealed class BookingServiceTests : IDisposable
     {
         var result = await _service.CancelBookingAsync(Guid.NewGuid(), "user1");
         Assert.Equal(CancelError.BookingNotFound, result.Error);
+    }
+
+    [Fact]
+    public async Task Refuses_to_store_a_booking_whose_time_has_passed()
+    {
+        var result = await Book("C", 6, 7);
+
+        Assert.Contains(BookingError.EndsInThePast, result.Errors);
+        Assert.Empty(_db.Bookings);
     }
 
     [Fact]

@@ -11,6 +11,9 @@ public class BookingRulesTests
 {
     private static readonly Room RoomA = new() { Id = "A", Capacity = 6 };
 
+    /// <summary>The present, for these tests. Every fixture time below sits after it.</summary>
+    private static readonly DateTime Now = new(2026, 9, 1, 8, 0, 0);
+
     private static DateTime At(int hour, int minute = 0) => new(2026, 9, 1, hour, minute, 0);
 
     private static Booking Existing(string roomId, DateTime start, DateTime end) => new()
@@ -26,7 +29,7 @@ public class BookingRulesTests
     private static IReadOnlyList<BookingError> Validate(
         DateTime start, DateTime end, int attendees = 2, string? title = "Interview with John Doe",
         Room? room = null, params Booking[] existing) =>
-        BookingRules.Validate(room ?? RoomA, title, start, end, attendees, existing);
+        BookingRules.Validate(room ?? RoomA, title, start, end, attendees, existing, Now);
 
     [Fact]
     public void Accepts_a_one_hour_booking_within_capacity()
@@ -91,7 +94,7 @@ public class BookingRulesTests
     public void Rejects_an_unknown_room()
     {
         Assert.Contains(BookingError.RoomNotFound, BookingRules.Validate(
-            room: null, "Title", At(10), At(11), 2, []));
+            room: null, "Title", At(10), At(11), 2, [], Now));
     }
 
     // The example the challenge spells out: an appointment running 10:00-11:30 blocks any
@@ -133,6 +136,36 @@ public class BookingRulesTests
         Assert.Contains(BookingError.NotAlignedToSlot, errors);
         Assert.Contains(BookingError.ExceedsMaxDuration, errors);
         Assert.Contains(BookingError.ExceedsRoomCapacity, errors);
+    }
+
+    // Only finished bookings are refused. A meeting already under way is still worth recording.
+
+    [Fact]
+    public void Rejects_a_booking_that_has_already_ended()
+    {
+        var errors = Validate(At(6), At(7));
+        Assert.Contains(BookingError.EndsInThePast, errors);
+    }
+
+    [Fact]
+    public void Rejects_a_booking_ending_exactly_now()
+    {
+        var errors = Validate(At(7), At(8));
+        Assert.Contains(BookingError.EndsInThePast, errors);
+    }
+
+    [Fact]
+    public void Accepts_a_booking_already_under_way()
+    {
+        // Started at 07:30, it is now 08:00, and it runs until 09:00.
+        var errors = Validate(At(7, 30), At(9));
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Accepts_a_booking_in_the_future()
+    {
+        Assert.Empty(Validate(At(10), At(11)));
     }
 
     [Fact]

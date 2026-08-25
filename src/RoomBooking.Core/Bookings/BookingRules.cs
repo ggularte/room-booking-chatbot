@@ -19,6 +19,9 @@ public static class BookingRules
     /// </summary>
     /// <param name="room">The target room, or null when no room matched the requested id.</param>
     /// <param name="existingInRoom">Bookings already held for that room.</param>
+    /// <param name="now">
+    /// The current moment, passed in rather than read from a clock so these stay pure functions.
+    /// </param>
     /// <param name="ignoreBookingId">Booking to exclude from the overlap check, when rescheduling.</param>
     public static IReadOnlyList<BookingError> Validate(
         Room? room,
@@ -27,6 +30,7 @@ public static class BookingRules
         DateTime end,
         int attendees,
         IEnumerable<Booking> existingInRoom,
+        DateTime now,
         Guid? ignoreBookingId = null)
     {
         var errors = new List<BookingError>();
@@ -53,6 +57,12 @@ public static class BookingRules
             errors.Add(BookingError.AttendeesMustBePositive);
         else if (room is not null && attendees > room.Capacity)
             errors.Add(BookingError.ExceedsRoomCapacity);
+
+        // Only bookings that have already finished are refused. A meeting that started ten minutes
+        // ago is still a meeting someone may need to put on the calendar, and the challenge says
+        // nothing about the past, so the narrower rule is the defensible one.
+        if (end > start && end <= now)
+            errors.Add(BookingError.EndsInThePast);
 
         if (end > start && Overlaps(start, end, existingInRoom, ignoreBookingId))
             errors.Add(BookingError.OverlapsExistingBooking);

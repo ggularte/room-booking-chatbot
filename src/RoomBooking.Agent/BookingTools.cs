@@ -111,6 +111,7 @@ public sealed class BookingTools(BookingService service, IUserContext user)
         BookingError.AttendeesMustBePositive => "The booking needs at least one attendee.",
         BookingError.ExceedsRoomCapacity => "That room does not hold that many people.",
         BookingError.OverlapsExistingBooking => "That room is already booked during part of that range.",
+        BookingError.EndsInThePast => "That time has already passed, so it cannot be booked.",
         _ => "The booking was refused.",
     };
 }

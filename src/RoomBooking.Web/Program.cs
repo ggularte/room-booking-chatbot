@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using RoomBooking.Agent;
 using RoomBooking.Core.Bookings;
 using RoomBooking.Core.Data;
@@ -38,6 +39,10 @@ builder.Services.AddRazorComponents()
 // the circuit, and a context that long-lived would serve stale rooms and bookings.
 builder.Services.AddDbContextFactory<BookingDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Bookings") ?? "Data Source=bookings.db"));
+
+// Registered here rather than relying on the assistant's extension method to provide it:
+// BookingService lives in Core and should not depend on the Agent package being wired up.
+builder.Services.TryAddSingleton(TimeProvider.System);
 
 builder.Services.AddScoped<BookingService>();
 

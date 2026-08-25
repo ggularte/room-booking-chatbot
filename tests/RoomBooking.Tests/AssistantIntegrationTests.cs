@@ -21,6 +21,8 @@ public sealed class AssistantIntegrationTests : IDisposable
 {
     private const string Model = "openai/gpt-oss-120b";
 
+    private static readonly DateTime Now = new(2026, 9, 1, 9, 0, 0);
+
     private readonly SqliteConnection _connection;
     private readonly BookingDbContext _db;
     private readonly BookingService _service;
@@ -38,7 +40,7 @@ public sealed class AssistantIntegrationTests : IDisposable
         var options = new DbContextOptionsBuilder<BookingDbContext>().UseSqlite(_connection).Options;
         _db = new BookingDbContext(options);
         _db.Database.EnsureCreated();
-        _service = new BookingService(new TestDbContextFactory(options));
+        _service = new BookingService(new TestDbContextFactory(options), new FixedClock(Now));
     }
 
     public void Dispose()
@@ -66,7 +68,7 @@ public sealed class AssistantIntegrationTests : IDisposable
         }
     }
 
-    private BookingAssistant Assistant(DateTime now)
+    private BookingAssistant Assistant()
     {
         var openAi = new OpenAIClient(
             new ApiKeyCredential(_apiKey!),
@@ -76,14 +78,7 @@ public sealed class AssistantIntegrationTests : IDisposable
             .UseFunctionInvocation()
             .Build();
 
-        var clock = new FakeTimeProvider(now);
-        return new BookingAssistant(chat, new BookingTools(_service, new FixedUser("user1")), clock);
-    }
-
-    private sealed class FakeTimeProvider(DateTime now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => new(now, TimeSpan.Zero);
-        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+        return new BookingAssistant(chat, new BookingTools(_service, new FixedUser("user1")), new FixedClock(Now));
     }
 
     [Fact]
@@ -97,7 +92,7 @@ public sealed class AssistantIntegrationTests : IDisposable
                 "Book room C tomorrow from 10:00 to 11:30 for 4 people. Title it 'Interview with John Doe'."),
         };
 
-        await Assistant(new DateTime(2026, 9, 1, 9, 0, 0)).ContinueAsync(history, "User1");
+        await Assistant().ContinueAsync(history, "User1");
 
         var booking = Assert.Single(_db.Bookings);
         Assert.Equal("C", booking.RoomId);
@@ -118,7 +113,7 @@ public sealed class AssistantIntegrationTests : IDisposable
                 "Book room A tomorrow from 10:00 to 15:00 for 30 people, title 'All hands'."),
         };
 
-        var response = await Assistant(new DateTime(2026, 9, 1, 9, 0, 0)).ContinueAsync(history, "User1");
+        var response = await Assistant().ContinueAsync(history, "User1");
 
         // Room A holds 4 and the range is 5 hours: the tool must refuse, and the assistant must not
         // claim otherwise or silently book something smaller.

@@ -13,7 +13,7 @@ namespace RoomBooking.Core.Bookings;
 /// lives as long as the user's circuit, and a context that long-lived serves values from its change
 /// tracker — one user would keep seeing a slot as free after another had taken it.
 /// </summary>
-public sealed class BookingService(IDbContextFactory<BookingDbContext> dbFactory)
+public sealed class BookingService(IDbContextFactory<BookingDbContext> dbFactory, TimeProvider clock)
 {
     public async Task<BookingResult> CreateBookingAsync(
         string roomId, DateTime start, DateTime end, string? title, int attendees, string userId,
@@ -29,7 +29,8 @@ public sealed class BookingService(IDbContextFactory<BookingDbContext> dbFactory
         var room = await db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId, ct);
         var sameRoom = await db.Bookings.Where(b => b.RoomId == roomId).ToListAsync(ct);
 
-        var errors = BookingRules.Validate(room, title, start, end, attendees, sameRoom);
+        var errors = BookingRules.Validate(
+            room, title, start, end, attendees, sameRoom, clock.GetLocalNow().DateTime);
         if (errors.Count > 0)
             return BookingResult.Failed(errors);
 
