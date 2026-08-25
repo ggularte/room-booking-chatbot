@@ -11,7 +11,11 @@ namespace RoomBooking.Tests;
 
 /// <summary>
 /// Exercises the whole path — prompt, model, tool call, validation, database — against the real
-/// provider. Skipped when GROQ_API_KEY is absent so the suite still runs offline and in CI.
+/// provider. Skipped when GROQ_API_KEY is absent so the suite still runs offline.
+///
+/// Skipping quietly is a false green: a CI job that lost its key would report success while never
+/// testing the model at all. Setting REQUIRE_LIVE_TESTS=1 turns the absent key into a failure, so
+/// a pipeline that is meant to cover this path can say so.
 /// </summary>
 public sealed class AssistantIntegrationTests : IDisposable
 {
@@ -43,6 +47,25 @@ public sealed class AssistantIntegrationTests : IDisposable
         _connection.Dispose();
     }
 
+    /// <summary>
+    /// True when the live provider can be reached. Fails outright, rather than skipping, when the
+    /// caller declared that these tests must run.
+    /// </summary>
+    private bool LiveProviderAvailable
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(_apiKey))
+                return true;
+
+            Assert.False(
+                Environment.GetEnvironmentVariable("REQUIRE_LIVE_TESTS") == "1",
+                "REQUIRE_LIVE_TESTS=1 but GROQ_API_KEY is not set, so the live tests could not run.");
+
+            return false;
+        }
+    }
+
     private BookingAssistant Assistant(DateTime now)
     {
         var openAi = new OpenAIClient(
@@ -66,7 +89,7 @@ public sealed class AssistantIntegrationTests : IDisposable
     [Fact]
     public async Task Books_a_room_from_a_plain_language_request()
     {
-        if (_apiKey is null) return;
+        if (!LiveProviderAvailable) return;
 
         var history = new List<ChatMessage>
         {
@@ -87,7 +110,7 @@ public sealed class AssistantIntegrationTests : IDisposable
     [Fact]
     public async Task Refuses_a_booking_that_breaks_a_rule_and_stores_nothing()
     {
-        if (_apiKey is null) return;
+        if (!LiveProviderAvailable) return;
 
         var history = new List<ChatMessage>
         {
