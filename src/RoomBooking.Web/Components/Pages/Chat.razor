@@ -1,0 +1,143 @@
+@page "/"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.AI
+@using RoomBooking.Agent
+@using RoomBooking.Web.Auth
+@inject BookingAssistant Assistant
+@inject CurrentUser CurrentUser
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>Meeting rooms</PageTitle>
+
+<div class="chat">
+    <header>
+        <div>
+            <strong>Meeting rooms</strong>
+            <span class="muted">Cubo Itaú</span>
+        </div>
+        <div class="who">
+            <span>@CurrentUser.Username</span>
+            <form action="/logout" method="post">
+                <AntiforgeryToken />
+                <button type="submit" class="link">Sign out</button>
+            </form>
+        </div>
+    </header>
+
+    <div class="transcript">
+        @if (!Rendered.Any())
+        {
+            <p class="muted empty">
+                Ask for a room. For example: &ldquo;which rooms are free tomorrow between 10 and 11?&rdquo;
+                or &ldquo;book room C on Tuesday from 14:00 to 15:30 for 6 people, title Design review&rdquo;.
+            </p>
+        }
+
+        @foreach (var entry in Rendered)
+        {
+            @if (entry.Tools.Length > 0)
+            {
+                <div class="tools">
+                    @foreach (var tool in entry.Tools)
+                    {
+                        <span class="tool">@tool</span>
+                    }
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(entry.Text))
+            {
+                <div class="bubble @(entry.IsUser ? "mine" : "theirs")">
+                    @if (entry.IsUser)
+                    {
+                        @entry.Text
+                    }
+                    else
+                    {
+                        @MarkdownRenderer.ToHtml(entry.Text)
+                    }
+                </div>
+            }
+        }
+
+        @if (busy)
+        {
+            <div class="bubble theirs pending">…</div>
+        }
+    </div>
+
+    @* preventDefault matters: without it the browser posts the form natively, the page reloads
+       and the circuit — along with the conversation — is thrown away. *@
+    <form class="composer" @onsubmit="SendAsync" @onsubmit:preventDefault>
+        <input @bind="draft" @bind:event="oninput" placeholder="Ask about rooms, or book one"
+               disabled="@busy" />
+        <button type="submit" disabled="@(busy || string.IsNullOrWhiteSpace(draft))">Send</button>
+    </form>
+
+    @if (failure is not null)
+    {
+        <p class="error" role="alert">@failure</p>
+    }
+</div>
+
+@code {
+    private readonly List<ChatMessage> history = [];
+    private string draft = string.Empty;
+    private bool busy;
+    private string? failure;
+
+    private sealed record Entry(bool IsUser, string Text, string[] Tools);
+
+    /// <summary>
+    /// Flattens the conversation for display, surfacing which tools ran. Showing the tool names is
+    /// deliberate: it is the difference between the assistant reporting the calendar and appearing
+    /// to know it.
+    /// </summary>
+    private IEnumerable<Entry> Rendered => history
+        .Where(m => m.Role != ChatRole.System && m.Role != ChatRole.Tool)
+        .Select(m => new Entry(
+            m.Role == ChatRole.User,
+            m.Text ?? string.Empty,
+            m.Contents.OfType<FunctionCallContent>().Select(c => c.Name).ToArray()))
+        .Where(e => !string.IsNullOrWhiteSpace(e.Text) || e.Tools.Length > 0);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var user = state.User;
+
+        CurrentUser.Set(
+            user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value,
+            user.Identity?.Name ?? "User");
+    }
+
+    private async Task SendAsync()
+    {
+        if (busy || string.IsNullOrWhiteSpace(draft))
+            return;
+
+        var message = draft.Trim();
+        draft = string.Empty;
+        failure = null;
+        busy = true;
+
+        history.Add(new ChatMessage(ChatRole.User, message));
+
+        try
+        {
+            await Assistant.ContinueAsync(history, CurrentUser.Username);
+        }
+        catch (Exception ex)
+        {
+            // The model provider is the one dependency that can fail in a way the user can do
+            // nothing about. Say so plainly rather than leaving the transcript hanging.
+            failure = $"The assistant could not be reached: {ex.Message}";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

@@ -26,7 +26,7 @@ public sealed class BookingServiceTests : IDisposable
 
         _db = new BookingDbContext(options);
         _db.Database.EnsureCreated();
-        _service = new BookingService(_db);
+        _service = new BookingService(new TestDbContextFactory(options));
     }
 
     public void Dispose()

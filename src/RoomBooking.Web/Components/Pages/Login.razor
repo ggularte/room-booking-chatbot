@@ -1,0 +1,80 @@
+@page "/login"
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using RoomBooking.Web.Auth
+@inject Credentials Credentials
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in</PageTitle>
+
+<div class="centred">
+    <div class="card">
+        <h1>Meeting rooms</h1>
+        <p class="muted">Cubo Itaú · rooms A to E</p>
+
+        <EditForm Model="Input!" OnValidSubmit="SignInAsync" FormName="login">
+            <DataAnnotationsValidator />
+
+            <label for="username">User</label>
+            <InputText id="username" @bind-Value="Input!.Username" autocomplete="username" placeholder="User1" />
+
+            <label for="password">Password</label>
+            <InputText id="password" type="password" @bind-Value="Input!.Password" autocomplete="current-password" />
+
+            @if (error is not null)
+            {
+                <p class="error" role="alert">@error</p>
+            }
+
+            <button type="submit">Sign in</button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    // Initialised in OnInitialized rather than inline: a form post can overwrite an initialised
+    // [SupplyParameterFromForm] property with null (BL0008).
+    [SupplyParameterFromForm] private LoginInput? Input { get; set; }
+
+    private string? error;
+
+    protected override void OnInitialized() => Input ??= new LoginInput();
+
+    private async Task SignInAsync()
+    {
+        var verified = Credentials.Verify(Input!.Username, Input.Password);
+
+        if (verified is not { } user)
+        {
+            // The challenge defines a fixed pair of accounts, so there is nothing to gain from
+            // distinguishing an unknown user from a wrong password.
+            error = "That user and password combination was not recognised.";
+            return;
+        }
+
+        var identity = new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.NameIdentifier, user.UserId),
+            new Claim(ClaimTypes.Name, user.Username),
+        ], CookieAuthenticationDefaults.AuthenticationScheme);
+
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            new ClaimsPrincipal(identity));
+
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+
+    private sealed class LoginInput
+    {
+        [Required(ErrorMessage = "Enter a user.")]
+        public string? Username { get; set; }
+
+        [Required(ErrorMessage = "Enter the password.")]
+        public string? Password { get; set; }
+    }
+}

@@ -31,9 +31,10 @@ public sealed class AssistantIntegrationTests : IDisposable
     {
         _connection = new SqliteConnection("Data Source=:memory:");
         _connection.Open();
-        _db = new BookingDbContext(new DbContextOptionsBuilder<BookingDbContext>().UseSqlite(_connection).Options);
+        var options = new DbContextOptionsBuilder<BookingDbContext>().UseSqlite(_connection).Options;
+        _db = new BookingDbContext(options);
         _db.Database.EnsureCreated();
-        _service = new BookingService(_db);
+        _service = new BookingService(new TestDbContextFactory(options));
     }
 
     public void Dispose()

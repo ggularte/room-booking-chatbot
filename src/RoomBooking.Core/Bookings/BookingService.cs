@@ -8,13 +8,19 @@ namespace RoomBooking.Core.Bookings;
 /// The four operations the assistant exposes as tools. Every write goes through
 /// <see cref="BookingRules"/>, so a booking that violates a constraint cannot be stored no matter
 /// what the model was persuaded to ask for.
+///
+/// A context is created per operation rather than injected. Under Blazor Server a scoped service
+/// lives as long as the user's circuit, and a context that long-lived serves values from its change
+/// tracker — one user would keep seeing a slot as free after another had taken it.
 /// </summary>
-public sealed class BookingService(BookingDbContext db)
+public sealed class BookingService(IDbContextFactory<BookingDbContext> dbFactory)
 {
     public async Task<BookingResult> CreateBookingAsync(
         string roomId, DateTime start, DateTime end, string? title, int attendees, string userId,
         CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
         // The overlap check and the insert share a transaction so two concurrent requests cannot
         // both observe a free slot and both write. Overlapping ranges cannot be expressed as a
         // unique index, so serialising here is what keeps the no-double-booking rule true.
@@ -48,6 +54,8 @@ public sealed class BookingService(BookingDbContext db)
     public async Task<IReadOnlyList<RoomAvailability>> ListAvailableRoomsAsync(
         DateTime start, DateTime end, int? minimumCapacity = null, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
         var rooms = await db.Rooms.OrderBy(r => r.Id).ToListAsync(ct);
         var overlapping = await db.Bookings
             .Where(b => start < b.End && b.Start < end)
@@ -63,6 +71,8 @@ public sealed class BookingService(BookingDbContext db)
     public async Task<RoomSchedule?> GetRoomScheduleAsync(
         string roomId, DateTime from, DateTime to, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
         var room = await db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId, ct);
         if (room is null)
             return null;
@@ -91,6 +101,8 @@ public sealed class BookingService(BookingDbContext db)
     /// <summary>Cancels a booking, refusing anything the requesting user does not own.</summary>
     public async Task<CancelResult> CancelBookingAsync(Guid bookingId, string userId, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
         var booking = await db.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId, ct);
 
         if (booking is null)
@@ -108,6 +120,8 @@ public sealed class BookingService(BookingDbContext db)
     public async Task<IReadOnlyList<Booking>> ListUserBookingsAsync(
         string userId, DateTime? from = null, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
         var query = db.Bookings.Where(b => b.UserId == userId);
         if (from is not null)
             query = query.Where(b => b.End > from);
