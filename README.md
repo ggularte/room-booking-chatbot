@@ -3,8 +3,6 @@
 Conversational assistant that manages meeting room bookings for the Cubo Itaú office,
 built for the Promtior technical challenge.
 
-> Status: scaffolding. Nothing is implemented yet.
-
 ## The problem
 
 A chatbot with tool-calling capabilities that lets an authenticated user book, inspect

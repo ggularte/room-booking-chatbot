@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\RoomBooking.Core\RoomBooking.Core.csproj" />
+    <ProjectReference Include="..\..\src\RoomBooking.Agent\RoomBooking.Agent.csproj" />
   </ItemGroup>
 
 </Project>
