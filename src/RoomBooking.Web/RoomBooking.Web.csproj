@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\RoomBooking.Core\RoomBooking.Core.csproj" />
+    <ProjectReference Include="..\RoomBooking.Agent\RoomBooking.Agent.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <UserSecretsId>e03d71f0-769d-40ea-b607-0df4507c24f9</UserSecretsId>
+  </PropertyGroup>
+
+</Project>
