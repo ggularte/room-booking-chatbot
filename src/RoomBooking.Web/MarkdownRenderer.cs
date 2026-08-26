@@ -1,3 +1,4 @@
+using System.Text;
 using Markdig;
 using Markdig.Renderers;
 using Markdig.Syntax;
@@ -29,7 +30,7 @@ public static class MarkdownRenderer
 
     public static MarkupString ToHtml(string markdown)
     {
-        var document = Markdown.Parse(markdown ?? string.Empty, Pipeline);
+        var document = Markdown.Parse(NormaliseSpacing(markdown ?? string.Empty), Pipeline);
 
         foreach (var link in document.Descendants<LinkInline>())
         {
@@ -58,6 +59,47 @@ public static class MarkdownRenderer
         renderer.Render(document);
 
         return new MarkupString(writer.ToString());
+    }
+
+    /// <summary>
+    /// Replaces the typographic spaces and hyphens the model sprinkles around numbers with their
+    /// ordinary equivalents.
+    ///
+    /// It writes "18:00 to 18:30" using U+202F, a narrow no-break space, and dates using U+2011, a
+    /// non-breaking hyphen. Both are legitimate characters and both render narrower than the
+    /// ordinary ones, so a sentence carrying a few of them looks unevenly spaced — words appearing
+    /// to run together in one phrase and not the next. Accents, curly quotes and en dashes are left
+    /// alone: those are correct typography and they render as intended.
+    /// </summary>
+    private static string NormaliseSpacing(string text)
+    {
+        var builder = new StringBuilder(text.Length);
+
+        foreach (var character in text)
+        {
+            switch (character)
+            {
+                // Spaces narrower than an ordinary one.
+                case '\u00A0' or '\u202F' or '\u2007' or '\u2008' or '\u2009' or '\u200A':
+                    builder.Append(' ');
+                    break;
+
+                // Non-breaking hyphen, as it writes dates.
+                case '\u2011':
+                    builder.Append('-');
+                    break;
+
+                // Invisible joiners, which serve no purpose here.
+                case '\u200B' or '\u2060' or '\uFEFF':
+                    break;
+
+                default:
+                    builder.Append(character);
+                    break;
+            }
+        }
+
+        return builder.ToString();
     }
 
     private static bool IsAllowed(string? url)

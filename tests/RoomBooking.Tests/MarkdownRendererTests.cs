@@ -89,6 +89,36 @@ public class MarkdownRendererTests
         Assert.Contains($"href=\"{expected}\"", Render(markdown));
     }
 
+    // The model writes times and dates with typographic spacing that renders narrower than an
+    // ordinary space, so a sentence carrying a few of them looks unevenly spaced.
+
+    [Theory]
+    [InlineData("18:00\u202Fa\u202F18:30", "18:00 a 18:30")]
+    [InlineData("13\u00A0personas", "13 personas")]
+    [InlineData("sala\u2009E", "sala E")]
+    [InlineData("2026\u201108\u201126", "2026-08-26")]
+    public void Replaces_typographic_spacing_with_ordinary_characters(string written, string expected)
+    {
+        Assert.Contains(expected, Render(written));
+    }
+
+    [Fact]
+    public void Drops_invisible_joiners()
+    {
+        Assert.Contains("room E", Render("room\u200B E\uFEFF"));
+    }
+
+    [Theory]
+    [InlineData("reunión")]
+    [InlineData("¿Qué título?")]
+    [InlineData("19:00 – 19:30")]
+    [InlineData("“Design review”")]
+    public void Leaves_correct_typography_alone(string text)
+    {
+        // Accents, the inverted question mark, en dashes and curly quotes all render as intended.
+        Assert.Contains(text, Render(text));
+    }
+
     [Fact]
     public void Renders_ordinary_markdown()
     {
