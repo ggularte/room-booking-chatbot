@@ -50,8 +50,11 @@ main { height: 100%; }
 
 .centred {
     min-height: 100%;
-    display: grid;
-    place-items: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
     padding: 1.5rem;
 }
 
@@ -222,3 +225,26 @@ button.link {
     color: inherit;
     font: inherit;
 }
+
+.attribution {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: baseline;
+    gap: .45rem;
+    padding: .85rem 1.25rem 1.1rem;
+    font-size: .78rem;
+    color: var(--muted);
+}
+
+.attribution a {
+    color: inherit;
+    text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+    text-underline-offset: 2px;
+}
+
+.attribution a:hover { color: var(--accent); }
+
+.chat .attribution { border-top: 1px solid var(--line); }
+
+.centred .attribution { padding: 0; }

@@ -16,5 +16,6 @@ public enum BookingError
     ExceedsRoomCapacity,
     OverlapsExistingBooking,
     EndsInThePast,
+    TooFarAhead,
     CouldNotSecureTheSlot,
 }

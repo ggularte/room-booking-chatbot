@@ -15,8 +15,8 @@ public class ToolResponseTests
 
     private static readonly DateTime Now = new(2026, 9, 1, 9, 0, 0);
 
-    private static BookingTools Tools() =>
-        new(TestDatabase.NewService(new FixedClock(Now)), new Signed("user1"));
+    private static BookingTools Tools(DateTime? now = null) =>
+        new(TestDatabase.NewService(new FixedClock(now ?? Now)), new Signed("user1"));
 
     [Fact]
     public async Task A_confirmed_booking_names_the_weekday()
@@ -26,7 +26,7 @@ public class ToolResponseTests
         var tools = Tools();
 
         var result = await tools.CreateBookingAsync(
-            "C", new DateTime(2026, 9, 2, 10, 0, 0), new DateTime(2026, 9, 2, 11, 0, 0), "Retro", 4);
+            "C", "2026-09-02T10:00:00", "2026-09-02T11:00:00", "Retro", 4);
 
         Assert.True(result.Success);
         Assert.Contains("Wednesday", result.Start);
@@ -39,7 +39,7 @@ public class ToolResponseTests
         var tools = Tools();
 
         var result = await tools.CreateBookingAsync(
-            "C", new DateTime(2026, 9, 2, 10, 0, 0), new DateTime(2026, 9, 2, 11, 0, 0), "  Retro  ", 4);
+            "C", "2026-09-02T10:00:00", "2026-09-02T11:00:00", "  Retro  ", 4);
 
         // Trimmed by the service, and reported back as stored rather than as requested.
         Assert.Equal("Retro", result.Title);
@@ -53,7 +53,7 @@ public class ToolResponseTests
         var tools = Tools();
 
         var result = await tools.CreateBookingAsync(
-            "A", new DateTime(2026, 9, 2, 10, 0, 0), new DateTime(2026, 9, 2, 11, 0, 0), "All hands", 30);
+            "A", "2026-09-02T10:00:00", "2026-09-02T11:00:00", "All hands", 30);
 
         Assert.False(result.Success);
         Assert.Contains(result.Problems, p => p.Contains("hold that many", StringComparison.OrdinalIgnoreCase));
@@ -67,7 +67,7 @@ public class ToolResponseTests
         await service.CreateBookingAsync("C", start, start.AddHours(1), "User2 private matter", 2, "user2");
 
         var tools = new BookingTools(service, new Signed("user1"));
-        var schedule = await tools.GetRoomScheduleAsync("C", start, start.AddHours(1));
+        var schedule = await tools.GetRoomScheduleAsync("C", "2026-09-02T10:00:00", "2026-09-02T11:00:00");
 
         // An hour is two slots.
         Assert.Equal(2, schedule!.Slots.Length);
@@ -79,13 +79,56 @@ public class ToolResponseTests
         });
     }
 
+    // A model that writes an impossible date should learn why, not just that something failed.
+
+    [Theory]
+    [InlineData("2026-09-34T10:00:00")]
+    [InlineData("2026-09-31T10:00:00")]
+    [InlineData("2026-09-02T24:67:00")]
+    [InlineData("2026-13-02T10:00:00")]
+    [InlineData("2027-02-29T10:00:00")]
+    [InlineData("tomorrow at ten")]
+    [InlineData("")]
+    public async Task An_impossible_moment_is_refused_in_words(string start)
+    {
+        var result = await Tools().CreateBookingAsync("C", start, "2026-09-02T11:00:00", "Retro", 4);
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Problems, p => p.Contains("not a real date", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task A_leap_day_is_a_real_date()
+    {
+        // 2028 is a leap year; 2027 is not, and is covered above. The clock sits near the date so
+        // the booking stays inside the horizon rather than tripping a different rule.
+        var result = await Tools(new DateTime(2028, 1, 15, 9, 0, 0)).CreateBookingAsync(
+            "C", "2028-02-29T10:00:00", "2028-02-29T11:00:00", "Retro", 4);
+
+        Assert.True(result.Success);
+        Assert.Contains("2028-02-29", result.Start);
+        Assert.Contains("Tuesday", result.Start);
+    }
+
+    [Fact]
+    public async Task A_trailing_Z_does_not_shift_the_booking()
+    {
+        // Models emit one even when told not to. Ten o'clock must stay ten o'clock.
+        var result = await Tools().CreateBookingAsync(
+            "C", "2026-09-02T10:00:00Z", "2026-09-02T11:00:00Z", "Retro", 4);
+
+        Assert.True(result.Success);
+        Assert.Contains("10:00", result.Start);
+        Assert.Contains("11:00", result.End);
+    }
+
     [Fact]
     public async Task Room_letters_are_accepted_in_any_case()
     {
         var tools = Tools();
 
         var result = await tools.CreateBookingAsync(
-            " c ", new DateTime(2026, 9, 2, 10, 0, 0), new DateTime(2026, 9, 2, 11, 0, 0), "Retro", 4);
+            " c ", "2026-09-02T10:00:00", "2026-09-02T11:00:00", "Retro", 4);
 
         Assert.True(result.Success);
         Assert.Equal("C", result.RoomId);

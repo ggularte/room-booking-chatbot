@@ -182,6 +182,24 @@ public class BookingRulesTests
     }
 
     [Fact]
+    public void Rejects_a_booking_beyond_the_horizon()
+    {
+        var farOff = Now.Add(BookingRules.BookingHorizon).AddDays(1);
+        var errors = BookingRules.Validate(RoomA, "Retro", farOff, farOff.AddHours(1), 2, [], Now);
+
+        Assert.Contains(BookingError.TooFarAhead, errors);
+    }
+
+    [Fact]
+    public void Accepts_a_booking_just_inside_the_horizon()
+    {
+        var nearly = Now.Add(BookingRules.BookingHorizon).AddDays(-1);
+        var errors = BookingRules.Validate(RoomA, "Retro", nearly, nearly.AddHours(1), 2, [], Now);
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
     public void Enumerates_the_slots_a_range_covers()
     {
         var slots = BookingRules.SlotsIn(At(10), At(11, 30)).ToList();

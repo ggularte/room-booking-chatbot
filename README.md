@@ -3,6 +3,8 @@
 Conversational assistant that manages meeting room bookings for the Cubo Itaú office,
 built for the Promtior technical challenge.
 
+**Gonzalo Gularte** — [ggularteuy@gmail.com](mailto:ggularteuy@gmail.com)
+
 ## The problem
 
 A chatbot with tool-calling capabilities that lets an authenticated user book, inspect
@@ -140,6 +142,14 @@ They live in `SeedData.Rooms` and changing them requires no other edit.
 
 **Time zone.** Bookings are stored and compared as wall-clock times in a single office time
 zone. The challenge describes one office, so no conversion is modelled.
+
+**How far ahead.** Nothing in the challenge sets a horizon, which left the year 9999
+bookable — junk that would sit in its owner's list forever. Rooms can be held up to a
+year ahead.
+
+**Title length.** The column declares 200 characters and SQLite does not enforce declared
+lengths, so titles were unbounded and were read back into the assistant's context on every
+schedule request. 200 is enforced as a rule.
 
 **Bookings in the past.** The challenge lists its constraints explicitly and says nothing
 about the past, so a reservation for last Tuesday would otherwise be as valid as one for

@@ -20,6 +20,13 @@ public static class BookingRules
     public const int MaxTitleLength = 200;
 
     /// <summary>
+    /// How far ahead a room can be held. Nothing in the challenge sets a horizon, which left the
+    /// year 9999 as bookable — junk that would sit in the owner's list forever. A year is generous
+    /// for a meeting room and keeps obvious nonsense out.
+    /// </summary>
+    public static readonly TimeSpan BookingHorizon = TimeSpan.FromDays(365);
+
+    /// <summary>
     /// Validates a booking request and returns every constraint it breaks. All violations are
     /// reported at once so the assistant can tell the user everything that is wrong in one turn
     /// rather than dripping one correction per message.
@@ -72,6 +79,9 @@ public static class BookingRules
         // nothing about the past, so the narrower rule is the defensible one.
         if (end > start && end <= now)
             errors.Add(BookingError.EndsInThePast);
+
+        if (end > start && start > now.Add(BookingHorizon))
+            errors.Add(BookingError.TooFarAhead);
 
         if (end > start && Overlaps(start, end, existingInRoom, ignoreBookingId))
             errors.Add(BookingError.OverlapsExistingBooking);
