@@ -69,6 +69,32 @@ public class SystemPromptTests
         Assert.Equal(1, chat.Calls.Last().Count(m => m.Role == ChatRole.System));
     }
 
+    // These pin instructions that were added because their absence produced bad answers: with a
+    // group size already given, the assistant offered a choice of five rooms when only one was big
+    // enough, and it restated the slot rule instead of proposing the slot that fitted. Whether the
+    // model obeys is its own matter; that it is told is testable here, and cheap.
+
+    [Fact]
+    public async Task Tells_the_assistant_to_size_rooms_before_offering_them()
+    {
+        var (assistant, chat, _) = Build(new DateTime(2026, 9, 1, 9, 0, 0));
+
+        await assistant.ContinueAsync([new ChatMessage(ChatRole.User, "hello")], "User1");
+
+        Assert.Contains("minimumCapacity", chat.LastSystemPrompt);
+        Assert.Contains("Offer only rooms that hold the group", chat.LastSystemPrompt);
+    }
+
+    [Fact]
+    public async Task Tells_the_assistant_to_propose_the_containing_slot()
+    {
+        var (assistant, chat, _) = Build(new DateTime(2026, 9, 1, 9, 0, 0));
+
+        await assistant.ContinueAsync([new ChatMessage(ChatRole.User, "hello")], "User1");
+
+        Assert.Contains("propose the slot that contains them", chat.LastSystemPrompt);
+    }
+
     [Fact]
     public async Task Names_the_signed_in_user()
     {
