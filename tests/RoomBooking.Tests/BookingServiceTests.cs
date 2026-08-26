@@ -77,7 +77,7 @@ public sealed class BookingServiceTests : IDisposable
 
         var clash = await Book("C", 11, 13, user: "user2");
 
-        Assert.Contains(BookingError.OverlapsExistingBooking, clash.Errors);
+        Assert.Contains(clash.Errors, problem => problem.Error == BookingError.OverlapsExistingBooking);
         Assert.Single(_db.Bookings);
     }
 
@@ -100,14 +100,14 @@ public sealed class BookingServiceTests : IDisposable
     public async Task Enforces_the_capacity_of_the_specific_room()
     {
         // Room A holds 4, room E holds 20. The same request succeeds in one and fails in the other.
-        Assert.Contains(BookingError.ExceedsRoomCapacity, (await Book("A", 10, 11, attendees: 5)).Errors);
+        Assert.Contains((await Book("A", 10, 11, attendees: 5)).Errors, problem => problem.Error == BookingError.ExceedsRoomCapacity);
         Assert.True((await Book("E", 10, 11, attendees: 5)).Succeeded);
     }
 
     [Fact]
     public async Task Rejects_an_unknown_room()
     {
-        Assert.Contains(BookingError.RoomNotFound, (await Book("Z", 10, 11)).Errors);
+        Assert.Contains((await Book("Z", 10, 11)).Errors, problem => problem.Error == BookingError.RoomNotFound);
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public sealed class BookingServiceTests : IDisposable
     {
         var result = await Book("C", 6, 7);
 
-        Assert.Contains(BookingError.EndsInThePast, result.Errors);
+        Assert.Contains(result.Errors, problem => problem.Error == BookingError.EndsInThePast);
         Assert.Empty(_db.Bookings);
     }
 

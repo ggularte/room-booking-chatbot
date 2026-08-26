@@ -58,7 +58,7 @@ public sealed class BookingService(IDbContextFactory<BookingDbContext> dbFactory
             // Serialising the check and the insert means a request arriving mid-transaction waits
             // for the lock, and gives up if it waits too long. That is a refusal the caller can act
             // on — try again — not a fault, and it must not surface as an unhandled exception.
-            return BookingResult.Failed([BookingError.CouldNotSecureTheSlot]);
+            return BookingResult.Failed([new BookingProblem(BookingError.CouldNotSecureTheSlot)]);
         }
     }
 

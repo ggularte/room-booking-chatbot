@@ -37,7 +37,7 @@ public static class BookingRules
     /// The current moment, passed in rather than read from a clock so these stay pure functions.
     /// </param>
     /// <param name="ignoreBookingId">Booking to exclude from the overlap check, when rescheduling.</param>
-    public static IReadOnlyList<BookingError> Validate(
+    public static IReadOnlyList<BookingProblem> Validate(
         Room? room,
         string? title,
         DateTime start,
@@ -47,44 +47,51 @@ public static class BookingRules
         DateTime now,
         Guid? ignoreBookingId = null)
     {
-        var errors = new List<BookingError>();
+        var errors = new List<BookingProblem>();
 
         if (string.IsNullOrWhiteSpace(title))
-            errors.Add(BookingError.TitleRequired);
+            errors.Add(new BookingProblem(BookingError.TitleRequired));
         else if (title.Trim().Length > MaxTitleLength)
-            errors.Add(BookingError.TitleTooLong);
+            errors.Add(new BookingProblem(BookingError.TitleTooLong));
 
         if (room is null)
-            errors.Add(BookingError.RoomNotFound);
+            errors.Add(new BookingProblem(BookingError.RoomNotFound));
 
         if (end <= start)
         {
-            errors.Add(BookingError.EndNotAfterStart);
+            errors.Add(new BookingProblem(BookingError.EndNotAfterStart));
         }
         else if ((end - start).TotalMinutes > MaxDurationMinutes)
         {
-            errors.Add(BookingError.ExceedsMaxDuration);
+            errors.Add(new BookingProblem(BookingError.ExceedsMaxDuration));
         }
 
         if (!IsAlignedToSlot(start) || !IsAlignedToSlot(end))
-            errors.Add(BookingError.NotAlignedToSlot);
+            errors.Add(new BookingProblem(BookingError.NotAlignedToSlot));
 
         if (attendees < 1)
-            errors.Add(BookingError.AttendeesMustBePositive);
+            errors.Add(new BookingProblem(BookingError.AttendeesMustBePositive));
         else if (room is not null && attendees > room.Capacity)
-            errors.Add(BookingError.ExceedsRoomCapacity);
+            errors.Add(new BookingProblem(BookingError.ExceedsRoomCapacity, room.Capacity.ToString()));
 
         // Only bookings that have already finished are refused. A meeting that started ten minutes
         // ago is still a meeting someone may need to put on the calendar, and the challenge says
         // nothing about the past, so the narrower rule is the defensible one.
         if (end > start && end <= now)
-            errors.Add(BookingError.EndsInThePast);
+            errors.Add(new BookingProblem(BookingError.EndsInThePast));
 
         if (end > start && start > now.Add(BookingHorizon))
-            errors.Add(BookingError.TooFarAhead);
+            errors.Add(new BookingProblem(BookingError.TooFarAhead));
 
-        if (end > start && Overlaps(start, end, existingInRoom, ignoreBookingId))
-            errors.Add(BookingError.OverlapsExistingBooking);
+        if (end > start)
+        {
+            var clashes = Clashes(start, end, existingInRoom, ignoreBookingId);
+
+            if (clashes.Count > 0)
+                errors.Add(new BookingProblem(
+                    BookingError.OverlapsExistingBooking,
+                    string.Join(" and ", clashes.Select(c => $"{c.Start:HH:mm}-{c.End:HH:mm}"))));
+        }
 
         return errors;
     }
@@ -109,6 +116,17 @@ public static class BookingRules
             b.Id != ignoreBookingId &&
             start < b.End &&
             b.Start < end);
+
+    /// <summary>The bookings a range runs into, in order.</summary>
+    public static IReadOnlyList<Booking> Clashes(
+        DateTime start,
+        DateTime end,
+        IEnumerable<Booking> existingInRoom,
+        Guid? ignoreBookingId = null) =>
+        existingInRoom
+            .Where(b => b.Id != ignoreBookingId && start < b.End && b.Start < end)
+            .OrderBy(b => b.Start)
+            .ToList();
 
     /// <summary>Enumerates the 30-minute slot starts covered by a range.</summary>
     public static IEnumerable<DateTime> SlotsIn(DateTime start, DateTime end)

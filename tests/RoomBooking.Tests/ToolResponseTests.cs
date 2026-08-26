@@ -56,7 +56,7 @@ public class ToolResponseTests
             "A", "2026-09-02T10:00:00", "2026-09-02T11:00:00", "All hands", 30);
 
         Assert.False(result.Success);
-        Assert.Contains(result.Problems, p => p.Contains("hold that many", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Problems, p => p.Contains("holds only", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -206,6 +206,44 @@ public class ToolResponseTests
 
         Assert.Empty(schedule.Slots);
         Assert.Contains(schedule.Problems, p => p.Contains("no such room", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // A reason the reader cannot act on is barely better than no reason.
+
+    [Fact]
+    public async Task A_refusal_for_capacity_says_how_many_the_room_holds()
+    {
+        var result = await Tools().CreateBookingAsync(
+            "A", "2026-09-02T10:00:00", "2026-09-02T11:00:00", "All hands", 30);
+
+        Assert.False(result.Success);
+        Assert.Contains("holds only 4", Assert.Single(result.Problems));
+    }
+
+    [Fact]
+    public async Task A_refusal_for_an_overlap_says_when_the_room_is_taken()
+    {
+        var tools = Tools();
+        await tools.CreateBookingAsync("C", "2026-09-02T09:00:00", "2026-09-02T12:00:00", "Workshop", 4);
+
+        var clash = await tools.CreateBookingAsync(
+            "C", "2026-09-02T10:00:00", "2026-09-02T11:00:00", "Sync", 4);
+
+        Assert.False(clash.Success);
+        Assert.Contains("already booked 09:00-12:00", Assert.Single(clash.Problems));
+    }
+
+    [Fact]
+    public async Task A_refusal_for_an_overlap_lists_every_booking_in_the_way()
+    {
+        var tools = Tools();
+        await tools.CreateBookingAsync("C", "2026-09-02T09:00:00", "2026-09-02T10:00:00", "First", 4);
+        await tools.CreateBookingAsync("C", "2026-09-02T11:00:00", "2026-09-02T12:00:00", "Second", 4);
+
+        var clash = await tools.CreateBookingAsync(
+            "C", "2026-09-02T09:00:00", "2026-09-02T12:00:00", "Offsite", 4);
+
+        Assert.Contains("already booked 09:00-10:00 and 11:00-12:00", Assert.Single(clash.Problems));
     }
 
     [Fact]

@@ -26,7 +26,7 @@ public class BookingRulesTests
         Attendees = 2,
     };
 
-    private static IReadOnlyList<BookingError> Validate(
+    private static IReadOnlyList<BookingProblem> Validate(
         DateTime start, DateTime end, int attendees = 2, string? title = "Interview with John Doe",
         Room? room = null, params Booking[] existing) =>
         BookingRules.Validate(room ?? RoomA, title, start, end, attendees, existing, Now);
@@ -46,13 +46,13 @@ public class BookingRulesTests
     [Fact]
     public void Rejects_a_booking_longer_than_three_hours()
     {
-        Assert.Contains(BookingError.ExceedsMaxDuration, Validate(At(10), At(13, 30)));
+        Assert.Contains(Validate(At(10), At(13, 30)), problem => problem.Error == BookingError.ExceedsMaxDuration);
     }
 
     [Fact]
     public void Rejects_an_end_that_does_not_follow_the_start()
     {
-        Assert.Contains(BookingError.EndNotAfterStart, Validate(At(11), At(10)));
+        Assert.Contains(Validate(At(11), At(10)), problem => problem.Error == BookingError.EndNotAfterStart);
     }
 
     [Theory]
@@ -61,13 +61,13 @@ public class BookingRulesTests
     [InlineData(10, 1)]
     public void Rejects_boundaries_off_the_thirty_minute_grid(int hour, int minute)
     {
-        Assert.Contains(BookingError.NotAlignedToSlot, Validate(new DateTime(2026, 9, 1, hour, minute, 0), At(12)));
+        Assert.Contains(Validate(new DateTime(2026, 9, 1, hour, minute, 0), At(12)), problem => problem.Error == BookingError.NotAlignedToSlot);
     }
 
     [Fact]
     public void Rejects_more_attendees_than_the_room_holds()
     {
-        Assert.Contains(BookingError.ExceedsRoomCapacity, Validate(At(10), At(11), attendees: RoomA.Capacity + 1));
+        Assert.Contains(Validate(At(10), At(11), attendees: RoomA.Capacity + 1), problem => problem.Error == BookingError.ExceedsRoomCapacity);
     }
 
     [Fact]
@@ -81,20 +81,20 @@ public class BookingRulesTests
     [InlineData(-3)]
     public void Rejects_a_non_positive_attendee_count(int attendees)
     {
-        Assert.Contains(BookingError.AttendeesMustBePositive, Validate(At(10), At(11), attendees));
+        Assert.Contains(Validate(At(10), At(11), attendees), problem => problem.Error == BookingError.AttendeesMustBePositive);
     }
 
     [Fact]
     public void Rejects_a_missing_title()
     {
-        Assert.Contains(BookingError.TitleRequired, Validate(At(10), At(11), title: "   "));
+        Assert.Contains(Validate(At(10), At(11), title: "   "), problem => problem.Error == BookingError.TitleRequired);
     }
 
     [Fact]
     public void Rejects_a_title_longer_than_the_column_holds()
     {
         var errors = Validate(At(10), At(11), title: new string('A', BookingRules.MaxTitleLength + 1));
-        Assert.Contains(BookingError.TitleTooLong, errors);
+        Assert.Contains(errors, problem => problem.Error == BookingError.TitleTooLong);
     }
 
     [Fact]
@@ -106,8 +106,8 @@ public class BookingRulesTests
     [Fact]
     public void Rejects_an_unknown_room()
     {
-        Assert.Contains(BookingError.RoomNotFound, BookingRules.Validate(
-            room: null, "Title", At(10), At(11), 2, [], Now));
+        Assert.Contains(BookingRules.Validate(
+            room: null, "Title", At(10), At(11), 2, [], Now), problem => problem.Error == BookingError.RoomNotFound);
     }
 
     // The example the challenge spells out: an appointment running 10:00-11:30 blocks any
@@ -123,7 +123,7 @@ public class BookingRulesTests
             new DateTime(2026, 9, 1, hour, minute, 0), At(12), 2, "Standup", RoomA,
             Existing("A", At(10), At(11, 30)));
 
-        Assert.Contains(BookingError.OverlapsExistingBooking, errors);
+        Assert.Contains(errors, problem => problem.Error == BookingError.OverlapsExistingBooking);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class BookingRulesTests
     public void Rejects_a_booking_that_swallows_an_existing_one()
     {
         var errors = Validate(At(9), At(12), 2, "Offsite", RoomA, Existing("A", At(10), At(11)));
-        Assert.Contains(BookingError.OverlapsExistingBooking, errors);
+        Assert.Contains(errors, problem => problem.Error == BookingError.OverlapsExistingBooking);
     }
 
     [Fact]
@@ -145,10 +145,10 @@ public class BookingRulesTests
     {
         var errors = Validate(At(10, 15), At(14, 15), attendees: 99, title: "");
 
-        Assert.Contains(BookingError.TitleRequired, errors);
-        Assert.Contains(BookingError.NotAlignedToSlot, errors);
-        Assert.Contains(BookingError.ExceedsMaxDuration, errors);
-        Assert.Contains(BookingError.ExceedsRoomCapacity, errors);
+        Assert.Contains(errors, problem => problem.Error == BookingError.TitleRequired);
+        Assert.Contains(errors, problem => problem.Error == BookingError.NotAlignedToSlot);
+        Assert.Contains(errors, problem => problem.Error == BookingError.ExceedsMaxDuration);
+        Assert.Contains(errors, problem => problem.Error == BookingError.ExceedsRoomCapacity);
     }
 
     // Only finished bookings are refused. A meeting already under way is still worth recording.
@@ -157,14 +157,14 @@ public class BookingRulesTests
     public void Rejects_a_booking_that_has_already_ended()
     {
         var errors = Validate(At(6), At(7));
-        Assert.Contains(BookingError.EndsInThePast, errors);
+        Assert.Contains(errors, problem => problem.Error == BookingError.EndsInThePast);
     }
 
     [Fact]
     public void Rejects_a_booking_ending_exactly_now()
     {
         var errors = Validate(At(7), At(8));
-        Assert.Contains(BookingError.EndsInThePast, errors);
+        Assert.Contains(errors, problem => problem.Error == BookingError.EndsInThePast);
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public class BookingRulesTests
         var farOff = Now.Add(BookingRules.BookingHorizon).AddDays(1);
         var errors = BookingRules.Validate(RoomA, "Retro", farOff, farOff.AddHours(1), 2, [], Now);
 
-        Assert.Contains(BookingError.TooFarAhead, errors);
+        Assert.Contains(errors, problem => problem.Error == BookingError.TooFarAhead);
     }
 
     [Fact]

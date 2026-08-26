@@ -66,7 +66,7 @@ public sealed class ConcurrencyTests : IDisposable
         var result = await Book("user1", Slot, Slot.AddHours(1));
 
         Assert.False(result.Succeeded);
-        Assert.Contains(BookingError.CouldNotSecureTheSlot, result.Errors);
+        Assert.Contains(result.Errors, problem => problem.Error == BookingError.CouldNotSecureTheSlot);
     }
 
     [Fact]

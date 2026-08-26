@@ -3,12 +3,12 @@ using RoomBooking.Core.Domain;
 namespace RoomBooking.Core.Bookings;
 
 /// <summary>Outcome of a create request: either the stored booking, or the constraints it broke.</summary>
-public sealed record BookingResult(Booking? Booking, IReadOnlyList<BookingError> Errors)
+public sealed record BookingResult(Booking? Booking, IReadOnlyList<BookingProblem> Errors)
 {
     public bool Succeeded => Errors.Count == 0 && Booking is not null;
 
     public static BookingResult Ok(Booking booking) => new(booking, []);
-    public static BookingResult Failed(IReadOnlyList<BookingError> errors) => new(null, errors);
+    public static BookingResult Failed(IReadOnlyList<BookingProblem> errors) => new(null, errors);
 }
 
 public enum CancelError

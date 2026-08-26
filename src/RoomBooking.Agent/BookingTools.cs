@@ -85,7 +85,7 @@ public sealed class BookingTools(BookingService service, IUserContext user)
 
         var schedule = await service.GetRoomScheduleAsync(room, windowStart, windowEnd, ct);
         if (schedule is null)
-            return NoSchedule(room, Describe(BookingError.RoomNotFound));
+            return NoSchedule(room, Describe(new BookingProblem(BookingError.RoomNotFound)));
 
         var slots = schedule.Slots
             .Select(s => new ScheduleSlotResponse(
@@ -187,17 +187,22 @@ public sealed class BookingTools(BookingService service, IUserContext user)
     private static string Format(DateTime moment) =>
         moment.ToString("yyyy-MM-dd (dddd) HH:mm", CultureInfo.InvariantCulture);
 
-    private static string Describe(BookingError error) => error switch
+    /// <summary>
+    /// A refusal in words, carrying whatever figure or hours make it actionable. A reason the
+    /// reader cannot act on is barely better than no reason: told only that a room is too small,
+    /// they have to ask how small.
+    /// </summary>
+    private static string Describe(BookingProblem problem) => problem.Error switch
     {
         BookingError.TitleRequired => "The appointment needs a title.",
         BookingError.TitleTooLong => $"That title is too long; keep it under {BookingRules.MaxTitleLength} characters.",
         BookingError.RoomNotFound => "There is no such room. The office has rooms A, B, C, D and E.",
         BookingError.EndNotAfterStart => "The end time must come after the start time.",
         BookingError.NotAlignedToSlot => "Bookings run in 30-minute slots, so they must start and end on the hour or half hour.",
-        BookingError.ExceedsMaxDuration => "A single booking cannot run longer than 3 hours.",
+        BookingError.ExceedsMaxDuration => $"A single booking cannot run longer than {BookingRules.MaxDurationMinutes / 60} hours.",
         BookingError.AttendeesMustBePositive => "The booking needs at least one attendee.",
-        BookingError.ExceedsRoomCapacity => "That room does not hold that many people.",
-        BookingError.OverlapsExistingBooking => "That room is already booked during part of that range.",
+        BookingError.ExceedsRoomCapacity => $"That room holds only {problem.Detail}.",
+        BookingError.OverlapsExistingBooking => $"That room is already booked {problem.Detail}.",
         BookingError.EndsInThePast => "That time has already passed, so it cannot be booked.",
         BookingError.TooFarAhead => $"Rooms can only be booked up to {BookingRules.BookingHorizon.Days} days ahead.",
         BookingError.CouldNotSecureTheSlot => "Someone else is booking that room right now. Try again in a moment.",
