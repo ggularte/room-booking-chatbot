@@ -1,21 +1,23 @@
 # Build
 #
-# Pinned, not floating. The 10.0 tag followed the newest feature band to 10.0.400, whose publish
-# emitted wwwroot without _framework — no Blazor runtime, so the deployed page loaded, answered
-# every request and did nothing. 10.0.302 is the band this was written and verified against.
+# Pinned to the band this was written and verified against. The 10.0 tag floats, and had followed
+# the newest band to 10.0.400 — which was the first suspect when the published wwwroot arrived
+# without its _framework directory. Pinning did not fix that, so it was not the cause; it stays
+# because a build that follows a moving tag is one whose output nobody can reproduce.
 FROM mcr.microsoft.com/dotnet/sdk:10.0.302 AS build
 WORKDIR /src
 
-# Project files first, so a change to source code does not invalidate the restore layer.
-COPY RoomBooking.slnx ./
-COPY src/RoomBooking.Core/RoomBooking.Core.csproj      src/RoomBooking.Core/
-COPY src/RoomBooking.Agent/RoomBooking.Agent.csproj    src/RoomBooking.Agent/
-COPY src/RoomBooking.Web/RoomBooking.Web.csproj        src/RoomBooking.Web/
-COPY tests/RoomBooking.Tests/RoomBooking.Tests.csproj  tests/RoomBooking.Tests/
-RUN dotnet restore src/RoomBooking.Web/RoomBooking.Web.csproj
-
+# Everything at once, and restore as part of the publish.
+#
+# This began as the usual trick: copy the project files, restore, then copy the source, so an edit
+# to a .cs file did not invalidate the restore layer. It produced an image whose wwwroot had no
+# _framework directory — no Blazor runtime — because the restore ran when the project was nothing
+# but .csproj files, and --no-restore then had the publish reuse what that restore had worked out
+# about a project with no wwwroot in it.
+#
+# A cached layer is worth less than a deployment that works.
 COPY . .
-RUN dotnet publish src/RoomBooking.Web/RoomBooking.Web.csproj -c Release -o /app --no-restore
+RUN dotnet publish src/RoomBooking.Web/RoomBooking.Web.csproj -c Release -o /app
 
 # Fail here rather than at the far end of a deploy. Without this file the page loads and every
 # request succeeds while nothing on it works, which is the most expensive kind of broken: it looks
