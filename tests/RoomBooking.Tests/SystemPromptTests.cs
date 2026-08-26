@@ -96,6 +96,29 @@ public class SystemPromptTests
     }
 
     [Fact]
+    public async Task Tells_the_assistant_to_answer_in_the_language_it_was_asked_in()
+    {
+        // The instructions are in English, and the model followed that rather than the person, so
+        // a question in Spanish came back in English — sometimes. Inconsistency is worse than
+        // either, since the reader cannot tell which they will get.
+        var (assistant, chat, _) = Build(new DateTime(2026, 9, 1, 9, 0, 0));
+
+        await assistant.ContinueAsync([new ChatMessage(ChatRole.User, "hello")], "User1");
+
+        Assert.Contains("Answer in the language they are writing in", chat.LastSystemPrompt);
+    }
+
+    [Fact]
+    public async Task Tells_the_assistant_to_say_it_extended_the_slot()
+    {
+        var (assistant, chat, _) = Build(new DateTime(2026, 9, 1, 9, 0, 0));
+
+        await assistant.ContinueAsync([new ChatMessage(ChatRole.User, "hello")], "User1");
+
+        Assert.Contains("name both and say why", chat.LastSystemPrompt);
+    }
+
+    [Fact]
     public async Task Names_the_signed_in_user()
     {
         var (assistant, chat, _) = Build(new DateTime(2026, 9, 1, 9, 0, 0));
