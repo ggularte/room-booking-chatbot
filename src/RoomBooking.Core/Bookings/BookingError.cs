@@ -7,6 +7,7 @@ namespace RoomBooking.Core.Bookings;
 public enum BookingError
 {
     TitleRequired,
+    TitleTooLong,
     RoomNotFound,
     EndNotAfterStart,
     NotAlignedToSlot,
@@ -15,4 +16,5 @@ public enum BookingError
     ExceedsRoomCapacity,
     OverlapsExistingBooking,
     EndsInThePast,
+    CouldNotSecureTheSlot,
 }

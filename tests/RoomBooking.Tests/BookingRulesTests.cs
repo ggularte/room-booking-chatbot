@@ -91,6 +91,19 @@ public class BookingRulesTests
     }
 
     [Fact]
+    public void Rejects_a_title_longer_than_the_column_holds()
+    {
+        var errors = Validate(At(10), At(11), title: new string('A', BookingRules.MaxTitleLength + 1));
+        Assert.Contains(BookingError.TitleTooLong, errors);
+    }
+
+    [Fact]
+    public void Accepts_a_title_exactly_at_the_limit()
+    {
+        Assert.Empty(Validate(At(10), At(11), title: new string('A', BookingRules.MaxTitleLength)));
+    }
+
+    [Fact]
     public void Rejects_an_unknown_room()
     {
         Assert.Contains(BookingError.RoomNotFound, BookingRules.Validate(

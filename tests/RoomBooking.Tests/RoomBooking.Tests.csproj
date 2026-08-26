@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\RoomBooking.Core\RoomBooking.Core.csproj" />
     <ProjectReference Include="..\..\src\RoomBooking.Agent\RoomBooking.Agent.csproj" />
+    <ProjectReference Include="..\..\src\RoomBooking.Web\RoomBooking.Web.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using RoomBooking.Core.Bookings;
 
 namespace RoomBooking.Agent;
@@ -22,7 +23,10 @@ public sealed class BookingTools(BookingService service, IUserContext user)
             NormalizeRoom(roomId), AsWallClock(start), AsWallClock(end), title, attendees, user.UserId, ct);
 
         return result.Succeeded
-            ? new CreateBookingResponse(true, result.Booking!.Id.ToString(), [])
+            ? new CreateBookingResponse(
+                true, result.Booking!.Id.ToString(), [],
+                result.Booking.RoomId, Format(result.Booking.Start), Format(result.Booking.End),
+                result.Booking.Title, result.Booking.Attendees)
             : new CreateBookingResponse(false, null, result.Errors.Select(Describe).ToArray());
     }
 
@@ -99,11 +103,21 @@ public sealed class BookingTools(BookingService service, IUserContext user)
 
     private static string NormalizeRoom(string roomId) => roomId.Trim().ToUpperInvariant();
 
-    private static string Format(DateTime moment) => moment.ToString("yyyy-MM-dd HH:mm");
+    /// <summary>
+    /// Includes the weekday rather than leaving the model to derive it. Asked to work out which day
+    /// "tomorrow" falls on, it gets it wrong often enough to tell someone their meeting is on
+    /// Tuesday when it is on Wednesday. Handing it the answer removes the arithmetic.
+    ///
+    /// Invariant, so the same deployment does not describe days in whatever language the host
+    /// happens to be configured for.
+    /// </summary>
+    private static string Format(DateTime moment) =>
+        moment.ToString("yyyy-MM-dd (dddd) HH:mm", CultureInfo.InvariantCulture);
 
     private static string Describe(BookingError error) => error switch
     {
         BookingError.TitleRequired => "The appointment needs a title.",
+        BookingError.TitleTooLong => $"That title is too long; keep it under {BookingRules.MaxTitleLength} characters.",
         BookingError.RoomNotFound => "There is no such room. The office has rooms A, B, C, D and E.",
         BookingError.EndNotAfterStart => "The end time must come after the start time.",
         BookingError.NotAlignedToSlot => "Bookings run in 30-minute slots, so they must start and end on the hour or half hour.",
@@ -112,6 +126,7 @@ public sealed class BookingTools(BookingService service, IUserContext user)
         BookingError.ExceedsRoomCapacity => "That room does not hold that many people.",
         BookingError.OverlapsExistingBooking => "That room is already booked during part of that range.",
         BookingError.EndsInThePast => "That time has already passed, so it cannot be booked.",
+        BookingError.CouldNotSecureTheSlot => "Someone else is booking that room right now. Try again in a moment.",
         _ => "The booking was refused.",
     };
 }

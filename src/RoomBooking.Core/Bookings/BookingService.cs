@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using RoomBooking.Core.Data;
 using RoomBooking.Core.Domain;
@@ -21,34 +22,44 @@ public sealed class BookingService(IDbContextFactory<BookingDbContext> dbFactory
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-        // The overlap check and the insert share a transaction so two concurrent requests cannot
-        // both observe a free slot and both write. Overlapping ranges cannot be expressed as a
-        // unique index, so serialising here is what keeps the no-double-booking rule true.
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-
-        var room = await db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId, ct);
-        var sameRoom = await db.Bookings.Where(b => b.RoomId == roomId).ToListAsync(ct);
-
-        var errors = BookingRules.Validate(
-            room, title, start, end, attendees, sameRoom, clock.GetLocalNow().DateTime);
-        if (errors.Count > 0)
-            return BookingResult.Failed(errors);
-
-        var booking = new Booking
+        try
         {
-            RoomId = roomId,
-            UserId = userId,
-            Title = title!.Trim(),
-            Start = start,
-            End = end,
-            Attendees = attendees,
-        };
+            // The overlap check and the insert share a transaction so two concurrent requests cannot
+            // both observe a free slot and both write. Overlapping ranges cannot be expressed as a
+            // unique index, so serialising here is what keeps the no-double-booking rule true.
+            await using var tx = await db.Database.BeginTransactionAsync(ct);
 
-        db.Bookings.Add(booking);
-        await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
+            var room = await db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId, ct);
+            var sameRoom = await db.Bookings.Where(b => b.RoomId == roomId).ToListAsync(ct);
 
-        return BookingResult.Ok(booking);
+            var errors = BookingRules.Validate(
+                room, title, start, end, attendees, sameRoom, clock.GetLocalNow().DateTime);
+            if (errors.Count > 0)
+                return BookingResult.Failed(errors);
+
+            var booking = new Booking
+            {
+                RoomId = roomId,
+                UserId = userId,
+                Title = title!.Trim(),
+                Start = start,
+                End = end,
+                Attendees = attendees,
+            };
+
+            db.Bookings.Add(booking);
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+
+            return BookingResult.Ok(booking);
+        }
+        catch (DbException)
+        {
+            // Serialising the check and the insert means a request arriving mid-transaction waits
+            // for the lock, and gives up if it waits too long. That is a refusal the caller can act
+            // on — try again — not a fault, and it must not surface as an unhandled exception.
+            return BookingResult.Failed([BookingError.CouldNotSecureTheSlot]);
+        }
     }
 
     /// <summary>Rooms with nothing booked anywhere in the requested range.</summary>

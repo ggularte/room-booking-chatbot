@@ -35,10 +35,15 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// Five seconds, not the thirty SQLite defaults to. A booking request that has to wait for another
+// one's lock should give up quickly and tell the user to try again, rather than leaving a chat
+// message spinning for half a minute.
+const string DefaultConnectionString = "Data Source=bookings.db;Default Timeout=5";
+
 // A factory rather than a scoped context: under Blazor Server a scoped service lives as long as
 // the circuit, and a context that long-lived would serve stale rooms and bookings.
 builder.Services.AddDbContextFactory<BookingDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("Bookings") ?? "Data Source=bookings.db"));
+    options.UseSqlite(builder.Configuration.GetConnectionString("Bookings") ?? DefaultConnectionString));
 
 // Registered here rather than relying on the assistant's extension method to provide it:
 // BookingService lives in Core and should not depend on the Agent package being wired up.

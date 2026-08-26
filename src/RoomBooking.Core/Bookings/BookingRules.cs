@@ -13,6 +13,13 @@ public static class BookingRules
     public const int MaxDurationMinutes = 180;
 
     /// <summary>
+    /// Matches the column width. SQLite does not enforce declared lengths, so without this a title
+    /// is unbounded — and it is read back into the assistant's context every time someone asks for
+    /// a room's schedule, where an enormous one crowds out the conversation.
+    /// </summary>
+    public const int MaxTitleLength = 200;
+
+    /// <summary>
     /// Validates a booking request and returns every constraint it breaks. All violations are
     /// reported at once so the assistant can tell the user everything that is wrong in one turn
     /// rather than dripping one correction per message.
@@ -37,6 +44,8 @@ public static class BookingRules
 
         if (string.IsNullOrWhiteSpace(title))
             errors.Add(BookingError.TitleRequired);
+        else if (title.Trim().Length > MaxTitleLength)
+            errors.Add(BookingError.TitleTooLong);
 
         if (room is null)
             errors.Add(BookingError.RoomNotFound);
