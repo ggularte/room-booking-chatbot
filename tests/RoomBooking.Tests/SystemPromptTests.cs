@@ -105,7 +105,8 @@ public class SystemPromptTests
 
         await assistant.ContinueAsync([new ChatMessage(ChatRole.User, "hello")], "User1");
 
-        Assert.Contains("Answer in the language they are writing in", chat.LastSystemPrompt);
+        Assert.Contains("Answer in the language of their latest message", chat.LastSystemPrompt);
+        Assert.Contains("does not settle it", chat.LastSystemPrompt);
     }
 
     [Fact]

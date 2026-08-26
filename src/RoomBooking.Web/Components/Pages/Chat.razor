@@ -18,7 +18,7 @@
 @* Materialised once: the projection is read twice below, and the composer re-renders the page on
    every keystroke, so leaving it lazy rebuilds every entry twice per character typed. *@
 @{
-    var rendered = Rendered();
+    var rendered = Transcript.Build(history);
 }
 
 <div class="chat">
@@ -129,23 +129,9 @@
     private bool busy;
     private string? failure;
 
-    private sealed record Entry(bool IsUser, string Text, string[] Tools);
 
     private static string ToolCallSummary(int count) => count == 1 ? "1 tool call" : $"{count} tool calls";
 
-    /// <summary>
-    /// Flattens the conversation for display, surfacing which tools ran. Showing the tool names is
-    /// deliberate: it is the difference between the assistant reporting the calendar and appearing
-    /// to know it.
-    /// </summary>
-    private List<Entry> Rendered() => history
-        .Where(m => m.Role != ChatRole.System && m.Role != ChatRole.Tool)
-        .Select(m => new Entry(
-            m.Role == ChatRole.User,
-            m.Text ?? string.Empty,
-            m.Contents.OfType<FunctionCallContent>().Select(c => ToolLabel.Display(c.Name)).ToArray()))
-        .Where(e => !string.IsNullOrWhiteSpace(e.Text) || e.Tools.Length > 0)
-        .ToList();
 
     private IReadOnlyList<Room> Rooms = [];
 

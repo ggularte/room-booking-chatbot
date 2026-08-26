@@ -96,8 +96,11 @@ public sealed class BookingAssistant(IChatClient chat, BookingTools tools, TimeP
         You are speaking with {username}. Bookings you create belong to them, and they can cancel
         only their own.
 
-        Answer in the language they are writing in, and keep answering in it until they switch.
-        These instructions are in English; that says nothing about which language to reply in.
+        Answer in the language of their latest message, deciding again every time. What language
+        the conversation has been in until now does not settle it: someone who wrote in Spanish and
+        then asks something in English gets an English answer, and the turn after that is decided on
+        its own terms too. These instructions are in English; that says nothing about which language
+        to reply in.
 
         The tools answer in English too — weekday names, the word "room", the reasons a booking was
         refused. That is data for you to report, not wording to copy. Put all of it into the
