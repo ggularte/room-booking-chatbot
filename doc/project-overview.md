@@ -141,21 +141,40 @@ path into someone else's session. Link targets are now restricted to `http`, `ht
 relative URLs — and autolinks and protocol-relative references had to be closed separately, since
 each bypasses the check meant for the other.
 
-### A floating base image, and an application that loaded but did nothing
+### Nothing a test could have caught
 
-The deployed container answered every request and did nothing at all: forms posted natively, the
-page reset, and no error appeared anywhere. `/_framework/blazor.web.js` was returning 404 — the
-Blazor runtime was simply absent, so the page was static HTML wearing an application's clothes.
+Three failures waited for the first real deployment. All 162 tests passed throughout, and the
+application ran correctly on the development machine each time. They are the most instructive part
+of this project, so they are worth setting out.
 
-It was not in the image. `wwwroot` held the application's own stylesheets and no `_framework`
-directory at all, while the identical publish command on the development machine produced one. The
-only difference left was the SDK: `mcr.microsoft.com/dotnet/sdk:10.0` is a moving tag and had
-followed the newest feature band to 10.0.400, while everything here was written against 10.0.302.
+**A missing key.** The container started and aborted immediately, because the configuration check
+at startup refuses to run without one. That is deliberate, and it cost one round trip: the log said
+which variable was missing and how to set it, and that was the whole diagnosis.
 
-The image is pinned now. More usefully, the build asserts the file exists before the image is
-finished — because the failure mode is the expensive kind: nothing errors, the health check passes,
-and it takes a browser console to notice that a working-looking application does nothing when you
-type into it.
+**A volume owned by root.** Mounting a volume at `/data` covers the directory the image had
+prepared, and the platform hands it over owned by root while the image runs as somebody else.
+SQLite reports the result as `SQLite Error 14: unable to open database file` — which names neither
+the folder nor the reason, wrapped in a stack trace through three layers of EF Core. That cost two
+round trips and a pasted log. The folder is checked before the database is opened now, and a
+failure names the path, the user it is running as, and the remedy.
+
+**An application that loaded and did nothing.** The third was the expensive one. Every request
+returned 200, the health check passed, the page rendered — and typing into it did nothing at all.
+`/_framework/blazor.web.js` was returning 404: the Blazor runtime was absent, so what looked like
+an application was static HTML wearing its clothes.
+
+Two guesses were wrong before the cause turned up. It was not the asset manifest, and it was not
+the floating `sdk:10.0` tag, though pinning that is worth doing anyway — a build that follows a
+moving tag is one nobody can reproduce. It was the Dockerfile's own cleverness: the usual
+layer-caching arrangement copies the project files, restores, then copies the source, so the
+restore ran when the project was five `.csproj` files with no `wwwroot` and no components, and
+`--no-restore` had the publish reuse what that restore had concluded about it. The application's
+own assets were published. The framework's were not.
+
+The lesson is not about Docker. It is that this failure is invisible from outside: no error, no
+failed request, no unhealthy container. What found it was making the build assert the file exists
+before finishing the image — and that assertion is also what refuted the SDK theory, by failing
+identically on the pinned image instead of letting a wrong fix look like a right one.
 
 ### The free tier has a daily ceiling
 
@@ -172,14 +191,16 @@ unaffected, because they are.
 
 ## Known limits
 
-- **The container image was never built locally** — Docker was not available on the machine this
-  was written on — and the first deployment is where that showed. Two failures cost a round trip
-  each, and a third cost several: a volume mounted owned by root, a startup that aborted on a
-  missing key, and a publish that silently omitted the Blazor runtime. All three now fail loudly
-  and say what to do; the third also fails the build rather than the deploy.
+- **The image is still never built locally.** Docker is not installed on the machine this was
+  written on, so the deployment platform is the first thing to build it. That is what the three
+  failures above came from, and why the build now refuses to finish an image without a Blazor
+  runtime in it.
 - **The fallback model has not fired against the provider.** Its logic is covered by tests with
   simulated refusals. Reproducing a spent allowance costs a day of one.
 - **Bookings are not editable.** Changing one means cancelling and booking again, which is what the
   assistant does when asked to move a meeting.
 - **SQLite on a container filesystem does not survive a redeploy.** A volume must be mounted at
-  `/data`; without one, every deploy empties the office.
+  `/data`; without one, every deploy empties the office. The deployed instance has one.
+- **Builds are slower than they need to be.** Restoring as part of the publish costs the cached
+  restore layer on every source edit. That was the price of the third failure above, and it is the
+  right way round: a cached layer is worth less than an image that works.

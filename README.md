@@ -5,6 +5,9 @@ built for the Promtior technical challenge.
 
 **Gonzalo Gularte** — [ggularteuy@gmail.com](mailto:ggularteuy@gmail.com)
 
+**Running at <https://room-booking-chatbot-production.up.railway.app>** — sign in as `User1` or
+`User2` with the password from the challenge document.
+
 ## The problem
 
 A chatbot with tool-calling capabilities that lets an authenticated user book, inspect
@@ -153,22 +156,22 @@ a redeploy.
 
 ### Deploying to Railway
 
-Three settings, and the third is not obvious:
+Four settings. None of them is guessable from the error you get without it, so they are listed
+with the reason.
 
 | | |
 |---|---|
-| Variable | `Groq__ApiKey` — the double underscore is how .NET reads nested configuration |
-| Volume | Mounted at `/data` |
-| Variable | `RAILWAY_RUN_UID=0` |
+| `Groq__ApiKey` | The double underscore is how .NET reads nested configuration. Without it the container aborts at startup and says so |
+| Volume at `/data` | Where the database lives. Without it, every redeploy empties the office |
+| `RAILWAY_RUN_UID=0` | Railway hands the volume to the container owned by `root` while this image runs as a non-root user. Without it the database cannot be created |
+| Target port `8080` | Railway injects `PORT` and the application listens on whatever it is given; 8080 is the image's fallback, so the two agree |
 
-The last one is needed because Railway mounts volumes owned by `root` while this image runs as a
-non-root user, so without it the application cannot create its database. Railway documents this as
-the remedy. The image keeps its non-root user for every other platform, most of which hand the
-mount to the container's own user.
+The image keeps its non-root user for every other platform, most of which give the mount to the
+container's own user.
 
-Set the target port to `8080` when generating the domain. Railway injects `PORT` and the
-application listens on whatever it is given; 8080 is what the image falls back to, so the two
-agree.
+Autodeploy needs Railway's GitHub App to have access to the repository — authorising it at sign-in
+is not the same thing, and without the installation Railway reports "GitHub Repo not found" and
+never sees a push.
 
 ## Assumptions
 
