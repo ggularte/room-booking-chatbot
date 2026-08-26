@@ -109,6 +109,21 @@ public class SystemPromptTests
     }
 
     [Fact]
+    public async Task Tells_the_assistant_to_translate_what_the_tools_return()
+    {
+        // The tools report weekdays in English by design, so that the model never has to work out
+        // which day a date falls on. Echoed rather than translated, that produced "Reserva
+        // confirmada: Wednesday 26 August 2026, room E" — every fact right, half of it in the
+        // wrong language.
+        var (assistant, chat, _) = Build(new DateTime(2026, 9, 1, 9, 0, 0));
+
+        await assistant.ContinueAsync([new ChatMessage(ChatRole.User, "hello")], "User1");
+
+        Assert.Contains("The tools answer in English too", chat.LastSystemPrompt);
+        Assert.Contains("mixes the two languages is wrong", chat.LastSystemPrompt);
+    }
+
+    [Fact]
     public async Task Tells_the_assistant_to_say_it_extended_the_slot()
     {
         var (assistant, chat, _) = Build(new DateTime(2026, 9, 1, 9, 0, 0));
