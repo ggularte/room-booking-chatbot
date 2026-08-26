@@ -115,6 +115,18 @@ Then open <https://localhost:7264> and sign in as `User1` or `User2` with the pa
 `TechnicalChallengePromtior`. The database is created and seeded on first run, so there
 is no migration step.
 
+### The notebook
+
+`notebook/technologies.ipynb` explains what the solution is built from and shows each piece
+working, reading the code out of this repository rather than restating it. It is committed with
+its outputs, so it can be read without being run.
+
+```bash
+cd notebook
+pip install -r requirements.txt
+GROQ_API_KEY="<your key>" jupyter lab technologies.ipynb
+```
+
 ### Tests
 
 ```bash

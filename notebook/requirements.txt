@@ -1,0 +1,4 @@
+# Everything the notebook needs. The rest is the standard library, on purpose: fewer
+# dependencies is fewer things between a reader and running it.
+openai>=1.60
+jupyterlab>=4.2
