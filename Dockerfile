@@ -1,5 +1,9 @@
 # Build
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+#
+# Pinned, not floating. The 10.0 tag followed the newest feature band to 10.0.400, whose publish
+# emitted wwwroot without _framework — no Blazor runtime, so the deployed page loaded, answered
+# every request and did nothing. 10.0.302 is the band this was written and verified against.
+FROM mcr.microsoft.com/dotnet/sdk:10.0.302 AS build
 WORKDIR /src
 
 # Project files first, so a change to source code does not invalidate the restore layer.
@@ -12,6 +16,15 @@ RUN dotnet restore src/RoomBooking.Web/RoomBooking.Web.csproj
 
 COPY . .
 RUN dotnet publish src/RoomBooking.Web/RoomBooking.Web.csproj -c Release -o /app --no-restore
+
+# Fail here rather than at the far end of a deploy. Without this file the page loads and every
+# request succeeds while nothing on it works, which is the most expensive kind of broken: it looks
+# fine from outside and takes a browser console to notice.
+RUN test -f /app/wwwroot/_framework/blazor.web.js || ( \
+      echo "ERROR: publish produced no wwwroot/_framework/blazor.web.js" >&2; \
+      echo "The Blazor runtime is missing and the application would be inert." >&2; \
+      ls -la /app/wwwroot >&2; \
+      exit 1 )
 
 # Runtime
 FROM mcr.microsoft.com/dotnet/aspnet:10.0

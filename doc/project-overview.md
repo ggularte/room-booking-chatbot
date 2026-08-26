@@ -141,6 +141,22 @@ path into someone else's session. Link targets are now restricted to `http`, `ht
 relative URLs — and autolinks and protocol-relative references had to be closed separately, since
 each bypasses the check meant for the other.
 
+### A floating base image, and an application that loaded but did nothing
+
+The deployed container answered every request and did nothing at all: forms posted natively, the
+page reset, and no error appeared anywhere. `/_framework/blazor.web.js` was returning 404 — the
+Blazor runtime was simply absent, so the page was static HTML wearing an application's clothes.
+
+It was not in the image. `wwwroot` held the application's own stylesheets and no `_framework`
+directory at all, while the identical publish command on the development machine produced one. The
+only difference left was the SDK: `mcr.microsoft.com/dotnet/sdk:10.0` is a moving tag and had
+followed the newest feature band to 10.0.400, while everything here was written against 10.0.302.
+
+The image is pinned now. More usefully, the build asserts the file exists before the image is
+finished — because the failure mode is the expensive kind: nothing errors, the health check passes,
+and it takes a browser console to notice that a working-looking application does nothing when you
+type into it.
+
 ### The free tier has a daily ceiling
 
 Groq allows a fixed number of tokens per day *per model*, and every turn resends the instructions
@@ -156,9 +172,11 @@ unaffected, because they are.
 
 ## Known limits
 
-- **The container image has not been built.** Docker was not available on the machine this was
-  written on. The publish step, both base image tags and the app's behaviour under a
-  platform-assigned port over plain HTTP were each verified; the image itself was not.
+- **The container image was never built locally** — Docker was not available on the machine this
+  was written on — and the first deployment is where that showed. Two failures cost a round trip
+  each, and a third cost several: a volume mounted owned by root, a startup that aborted on a
+  missing key, and a publish that silently omitted the Blazor runtime. All three now fail loudly
+  and say what to do; the third also fails the build rather than the deploy.
 - **The fallback model has not fired against the provider.** Its logic is covered by tests with
   simulated refusals. Reproducing a spent allowance costs a day of one.
 - **Bookings are not editable.** Changing one means cancelling and booking again, which is what the
