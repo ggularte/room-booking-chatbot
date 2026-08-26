@@ -20,6 +20,11 @@ COPY --from=build /app .
 
 # SQLite writes to disk, and a container filesystem does not survive a redeploy. Mounting a volume
 # at /data is what keeps bookings; without one the office is empty again after every deploy.
+#
+# This chown applies to the image's own /data. A mounted volume covers it with a fresh directory,
+# and some platforms — Railway among them — leave that owned by root, which the non-root user below
+# then cannot write to. Where that happens the platform needs telling to run as root: on Railway
+# that is RAILWAY_RUN_UID=0. See the README.
 RUN mkdir -p /data && chown -R app:app /data
 ENV ConnectionStrings__Bookings="Data Source=/data/bookings.db"
 

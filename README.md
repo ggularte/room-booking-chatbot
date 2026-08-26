@@ -148,9 +148,27 @@ docker build -t room-booking .
 docker run -p 8080:8080 -e Groq__ApiKey="<your key>" -v room-booking-data:/data room-booking
 ```
 
-The volume matters: the database lives at `/data`, and a container filesystem does not
-survive a redeploy. On Railway, mount a volume at `/data` and set `Groq__ApiKey` as a
-service variable.
+The volume matters: the database lives at `/data`, and a container filesystem does not survive
+a redeploy.
+
+### Deploying to Railway
+
+Three settings, and the third is not obvious:
+
+| | |
+|---|---|
+| Variable | `Groq__ApiKey` — the double underscore is how .NET reads nested configuration |
+| Volume | Mounted at `/data` |
+| Variable | `RAILWAY_RUN_UID=0` |
+
+The last one is needed because Railway mounts volumes owned by `root` while this image runs as a
+non-root user, so without it the application cannot create its database. Railway documents this as
+the remedy. The image keeps its non-root user for every other platform, most of which hand the
+mount to the container's own user.
+
+Set the target port to `8080` when generating the domain. Railway injects `PORT` and the
+application listens on whatever it is given; 8080 is what the image falls back to, so the two
+agree.
 
 ## Assumptions
 
