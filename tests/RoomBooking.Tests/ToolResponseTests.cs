@@ -60,6 +60,44 @@ public class ToolResponseTests
     }
 
     [Fact]
+    public async Task Availability_names_the_one_room_that_fits_and_why_the_rest_do_not()
+    {
+        var availability = await Tools().ListAvailableRoomsAsync(
+            "2026-09-02T15:00:00", "2026-09-02T15:30:00", minimumCapacity: 13);
+
+        // Only E holds thirteen. Deciding that is arithmetic, and it is done here rather than left
+        // to the model, which read a list of flags as "nothing is available".
+        Assert.Equal(["E"], availability.Suitable.Select(r => r.RoomId).ToArray());
+        Assert.Equal(["A", "B", "C", "D"], availability.Unsuitable.Select(r => r.RoomId).ToArray());
+        Assert.All(availability.Unsuitable, r => Assert.Contains("holds only", r.Reason!));
+    }
+
+    [Fact]
+    public async Task Availability_separates_being_too_small_from_being_taken()
+    {
+        var tools = Tools();
+        await tools.CreateBookingAsync("E", "2026-09-02T15:00:00", "2026-09-02T16:00:00", "Taken", 2);
+
+        var availability = await tools.ListAvailableRoomsAsync(
+            "2026-09-02T15:00:00", "2026-09-02T15:30:00", minimumCapacity: 13);
+
+        // One is solved by moving the meeting, the other by shrinking it.
+        Assert.Empty(availability.Suitable);
+        Assert.Contains("already booked", availability.Unsuitable.Single(r => r.RoomId == "E").Reason!);
+        Assert.Contains("holds only 4", availability.Unsuitable.Single(r => r.RoomId == "A").Reason!);
+    }
+
+    [Fact]
+    public async Task Availability_marks_nothing_unsuitable_when_no_group_size_is_given()
+    {
+        var availability = await Tools().ListAvailableRoomsAsync(
+            "2026-09-02T15:00:00", "2026-09-02T15:30:00");
+
+        Assert.Equal(5, availability.Suitable.Length);
+        Assert.Empty(availability.Unsuitable);
+    }
+
+    [Fact]
     public async Task A_schedule_hides_other_peoples_titles()
     {
         var service = TestDatabase.NewService(new FixedClock(Now));
@@ -107,7 +145,8 @@ public class ToolResponseTests
     {
         var result = await Tools().ListAvailableRoomsAsync(start, end);
 
-        Assert.Empty(result.Rooms);
+        Assert.Empty(result.Suitable);
+        Assert.Empty(result.Unsuitable);
         Assert.Contains(result.Problems, p => p.Contains("not a real date", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -116,7 +155,7 @@ public class ToolResponseTests
     {
         var result = await Tools().ListAvailableRoomsAsync("2026-09-02T10:00:00", "2026-09-02T11:00:00");
 
-        Assert.NotEmpty(result.Rooms);
+        Assert.NotEmpty(result.Suitable);
         Assert.Empty(result.Problems);
     }
 

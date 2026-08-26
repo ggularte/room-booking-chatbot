@@ -20,13 +20,28 @@ public sealed record CreateBookingResponse(
 
 public sealed record CancelBookingResponse(bool Success, string? Problem);
 
-public sealed record AvailableRoomResponse(string RoomId, int Capacity, bool IsFree);
+/// <summary>
+/// A room's standing for the requested range. <see cref="Reason"/> is null when the room can be
+/// booked, and otherwise says in words why it cannot.
+/// </summary>
+public sealed record AvailableRoomResponse(string RoomId, int Capacity, string? Reason);
 
 /// <summary>
-/// Carries the problems alongside the rooms so that a request the tool refused to carry out cannot
-/// be mistaken for a calendar with nothing free in it.
+/// Rooms sorted into those that can be booked and those that cannot, each unusable one carrying its
+/// reason.
+///
+/// Two named lists rather than one list of flags: given rooms marked <c>IsFree</c> and
+/// <c>FitsGroup</c>, the model read four false flags as "nothing is available" and reported that to
+/// the user while a suitable room sat free. Deciding which rooms qualify is arithmetic, and
+/// arithmetic belongs here.
+///
+/// Problems travel alongside so that a request the tool could not carry out is never mistaken for
+/// an office with nothing free in it.
 /// </summary>
-public sealed record AvailabilityResponse(AvailableRoomResponse[] Rooms, string[] Problems);
+public sealed record AvailabilityResponse(
+    AvailableRoomResponse[] Suitable,
+    AvailableRoomResponse[] Unsuitable,
+    string[] Problems);
 
 public sealed record ScheduleSlotResponse(string Start, string End, bool IsAvailable, string? Title, bool IsMine);
 

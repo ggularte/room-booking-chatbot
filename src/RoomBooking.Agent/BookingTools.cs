@@ -36,24 +36,34 @@ public sealed class BookingTools(BookingService service, IUserContext user)
             : new CreateBookingResponse(false, null, result.Errors.Select(Describe).ToArray());
     }
 
-    [Description("List the meeting rooms that are completely free across a time range, optionally only those large enough for a given number of people. Returns the problems found if the range could not be read.")]
+    [Description("Report which rooms can be booked over a time range and which cannot. Suitable rooms are free and large enough; unsuitable ones come with the reason, so it can be explained rather than guessed. Book from Suitable only. Returns the problems found if the range could not be read.")]
     public async Task<AvailabilityResponse> ListAvailableRoomsAsync(
         [Description("Start of the range in the office's local time, as 2026-09-01T10:00:00.")] string start,
         [Description("End of the range, in the same format.")] string end,
-        [Description("Only return rooms holding at least this many people. Omit if the group size is unknown.")] int? minimumCapacity = null,
+        [Description("How many people are coming, when known. Rooms too small are still returned, marked as not fitting.")] int? minimumCapacity = null,
         CancellationToken ct = default)
     {
         // Refused in words rather than as an empty list: nothing free and never looked are
         // different answers, and only one of them may be reported to the user as fact.
         if (!TryReadMoment(start, out var from))
-            return new AvailabilityResponse([], [NotAMoment(nameof(start), start)]);
+            return new AvailabilityResponse([], [], [NotAMoment(nameof(start), start)]);
 
         if (!TryReadMoment(end, out var to))
-            return new AvailabilityResponse([], [NotAMoment(nameof(end), end)]);
+            return new AvailabilityResponse([], [], [NotAMoment(nameof(end), end)]);
 
-        var rooms = await service.ListAvailableRoomsAsync(from, to, minimumCapacity, ct);
+        // Queried unfiltered, then sorted here. Narrowing in the query would leave the assistant
+        // able to say which room to use but not why the others were ruled out, and "the rest are
+        // too small" and "the rest are taken" are different answers to the person asking.
+        var rooms = await service.ListAvailableRoomsAsync(from, to, minimumCapacity: null, ct);
+
+        var judged = rooms
+            .Select(r => new AvailableRoomResponse(r.RoomId, r.Capacity, WhyNot(r, minimumCapacity)))
+            .ToArray();
+
         return new AvailabilityResponse(
-            rooms.Select(r => new AvailableRoomResponse(r.RoomId, r.Capacity, r.IsFree)).ToArray(), []);
+            [.. judged.Where(r => r.Reason is null)],
+            [.. judged.Where(r => r.Reason is not null)],
+            []);
     }
 
     [Description("Show a room's schedule slot by slot over a range, marking which 30-minute slots are free and which are taken. Returns the problems found if the room or the range could not be read.")]
@@ -144,6 +154,15 @@ public sealed class BookingTools(BookingService service, IUserContext user)
 
     private static RoomScheduleResponse NoSchedule(string roomId, string problem) =>
         new(roomId, 0, [], [problem]);
+
+    /// <summary>Why a room cannot be booked, or null when it can.</summary>
+    private static string? WhyNot(RoomAvailability room, int? attendees)
+    {
+        if (attendees is not null && room.Capacity < attendees)
+            return $"holds only {room.Capacity}";
+
+        return room.IsFree ? null : "already booked for part of that range";
+    }
 
     private static string NotAMoment(string field, string? value) =>
         $"The {field} '{value}' is not a real date and time. Use the form 2026-09-01T10:00:00.";
