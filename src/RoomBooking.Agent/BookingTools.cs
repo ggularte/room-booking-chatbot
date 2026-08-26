@@ -161,7 +161,14 @@ public sealed class BookingTools(BookingService service, IUserContext user)
         if (attendees is not null && room.Capacity < attendees)
             return $"holds only {room.Capacity}";
 
-        return room.IsFree ? null : "already booked for part of that range";
+        if (room.IsFree)
+            return null;
+
+        // Named, not merely alluded to. "Busy for part of that range" leaves the asker exactly
+        // where they were; the hours let them pick another time without asking again.
+        var when = string.Join(" and ", room.Busy.Select(b => $"{b.Start:HH:mm}-{b.End:HH:mm}"));
+
+        return $"already booked {when}";
     }
 
     private static string NotAMoment(string field, string? value) =>

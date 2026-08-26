@@ -75,7 +75,16 @@ public sealed class BookingService(IDbContextFactory<BookingDbContext> dbFactory
 
         return rooms
             .Where(r => minimumCapacity is null || r.Capacity >= minimumCapacity)
-            .Select(r => new RoomAvailability(r.Id, r.Capacity, overlapping.All(b => b.RoomId != r.Id)))
+            .Select(r =>
+            {
+                var clashes = overlapping
+                    .Where(b => b.RoomId == r.Id)
+                    .OrderBy(b => b.Start)
+                    .Select(b => new BusyPeriod(b.Start, b.End))
+                    .ToList();
+
+                return new RoomAvailability(r.Id, r.Capacity, clashes.Count == 0, clashes);
+            })
             .ToList();
     }
 

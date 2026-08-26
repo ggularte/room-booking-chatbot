@@ -88,6 +88,35 @@ public class ToolResponseTests
     }
 
     [Fact]
+    public async Task Availability_says_when_a_room_is_taken_not_merely_that_it_is()
+    {
+        // "Busy for part of that range" leaves the asker where they started. The hours let them
+        // pick another time without asking a second question.
+        var tools = Tools();
+        await tools.CreateBookingAsync("C", "2026-09-02T09:00:00", "2026-09-02T12:00:00", "Workshop", 4);
+
+        var availability = await tools.ListAvailableRoomsAsync(
+            "2026-09-02T10:00:00", "2026-09-02T11:00:00");
+
+        var c = availability.Unsuitable.Single(r => r.RoomId == "C");
+        Assert.Equal("already booked 09:00-12:00", c.Reason);
+    }
+
+    [Fact]
+    public async Task Availability_lists_every_stretch_a_room_is_taken_for()
+    {
+        var tools = Tools();
+        await tools.CreateBookingAsync("C", "2026-09-02T09:00:00", "2026-09-02T10:00:00", "First", 4);
+        await tools.CreateBookingAsync("C", "2026-09-02T11:00:00", "2026-09-02T12:00:00", "Second", 4);
+
+        var availability = await tools.ListAvailableRoomsAsync(
+            "2026-09-02T09:00:00", "2026-09-02T12:00:00");
+
+        var c = availability.Unsuitable.Single(r => r.RoomId == "C");
+        Assert.Equal("already booked 09:00-10:00 and 11:00-12:00", c.Reason);
+    }
+
+    [Fact]
     public async Task Availability_marks_nothing_unsuitable_when_no_group_size_is_given()
     {
         var availability = await Tools().ListAvailableRoomsAsync(
