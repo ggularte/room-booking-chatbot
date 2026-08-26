@@ -110,6 +110,21 @@ public class SystemPromptTests
     }
 
     [Fact]
+    public async Task Tells_the_assistant_to_account_for_the_rooms_it_leaves_out()
+    {
+        // Four rooms listed and a fifth silently absent forces a second question: the reader
+        // cannot tell whether it does not exist, does not fit, or is taken.
+        var (assistant, chat, _) = Build(new DateTime(2026, 9, 1, 9, 0, 0));
+
+        await assistant.ContinueAsync([new ChatMessage(ChatRole.User, "hello")], "User1");
+
+        // Asserted on fragments that do not straddle a line break in the raw string.
+        Assert.Contains("Answering about availability", chat.LastSystemPrompt);
+        Assert.Contains("Say it unprompted", chat.LastSystemPrompt);
+        Assert.Contains("should not have to ask", chat.LastSystemPrompt);
+    }
+
+    [Fact]
     public async Task Tells_the_assistant_to_translate_what_the_tools_return()
     {
         // The tools report weekdays in English by design, so that the model never has to work out
