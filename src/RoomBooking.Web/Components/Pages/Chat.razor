@@ -108,7 +108,7 @@
         .Select(m => new Entry(
             m.Role == ChatRole.User,
             m.Text ?? string.Empty,
-            m.Contents.OfType<FunctionCallContent>().Select(c => c.Name).ToArray()))
+            m.Contents.OfType<FunctionCallContent>().Select(c => ToolLabel.Display(c.Name)).ToArray()))
         .Where(e => !string.IsNullOrWhiteSpace(e.Text) || e.Tools.Length > 0)
         .ToList();
 
