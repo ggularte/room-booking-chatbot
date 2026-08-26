@@ -315,3 +315,34 @@ button.link {
 .chat .attribution { border-top: 1px solid var(--line); }
 
 .centred .attribution { padding: 0; }
+
+/* Opening message */
+
+.bubble.greeting {
+    max-width: 100%;
+    background: transparent;
+    border: 1px solid var(--line);
+    padding: 1rem 1.1rem;
+}
+
+.bubble.greeting p { margin: 0 0 .7rem; }
+.bubble.greeting p:last-child { margin-bottom: 0; }
+
+.rooms {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    margin: 0 0 .7rem;
+    padding: 0;
+    list-style: none;
+}
+
+.rooms li {
+    display: flex;
+    align-items: baseline;
+    gap: .35rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: .25rem .55rem;
+    font-size: .85rem;
+}

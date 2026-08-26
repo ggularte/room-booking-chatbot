@@ -3,9 +3,13 @@
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.Extensions.AI
+@using Microsoft.EntityFrameworkCore
 @using RoomBooking.Agent
+@using RoomBooking.Core.Data
+@using RoomBooking.Core.Domain
 @using RoomBooking.Web.Auth
 @inject BookingAssistant Assistant
+@inject IDbContextFactory<BookingDbContext> Database
 @inject CurrentUser CurrentUser
 @inject AuthenticationStateProvider AuthState
 
@@ -35,10 +39,31 @@
     <div class="transcript">
         @if (rendered.Count == 0)
         {
-            <p class="muted empty">
-                Ask for a room. For example: &ldquo;which rooms are free tomorrow between 10 and 11?&rdquo;
-                or &ldquo;book room C on Tuesday from 14:00 to 15:30 for 6 people, title Design review&rdquo;.
-            </p>
+            @* Written here rather than generated. The rules below are facts, not something worth
+               asking a model to compose: this way the greeting is instant, costs nothing against
+               the daily allowance, and still appears on a day when that allowance is spent — which
+               is precisely when a blank window would be most misleading. *@
+            <div class="bubble theirs greeting">
+                <p>
+                    Hello. I look after the meeting rooms at the Cubo Itaú office — I can check what
+                    is free, book a room for you, and cancel a booking you have made.
+                </p>
+                <p>There are five rooms, and they are not the same size:</p>
+                <ul class="rooms">
+                    @foreach (var room in Rooms)
+                    {
+                        <li><strong>@room.Id</strong> <span class="muted">up to @room.Capacity</span></li>
+                    }
+                </ul>
+                <p>
+                    Rooms go in 30-minute slots, on the hour or the half hour, for up to 3 hours at a
+                    time. Every booking needs a title and the number of people coming.
+                </p>
+                <p class="muted">
+                    Try &ldquo;which rooms are free tomorrow between 10 and 11 for six people?&rdquo;
+                    &mdash; or just say what you need. I answer in whichever language you write in.
+                </p>
+            </div>
         }
 
         @foreach (var entry in rendered)
@@ -122,8 +147,15 @@
         .Where(e => !string.IsNullOrWhiteSpace(e.Text) || e.Tools.Length > 0)
         .ToList();
 
+    private IReadOnlyList<Room> Rooms = [];
+
     protected override async Task OnInitializedAsync()
     {
+        // Read rather than hard-coded: the greeting states the capacities, and a greeting that
+        // disagrees with what the tools enforce is worse than none.
+        await using var db = await Database.CreateDbContextAsync();
+        Rooms = await db.Rooms.OrderBy(r => r.Id).ToListAsync();
+
         var state = await AuthState.GetAuthenticationStateAsync();
         var user = state.User;
 
