@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using RoomBooking.Agent;
@@ -91,6 +92,9 @@ builder.Services.AddBookingAssistant(
 
 var app = builder.Build();
 
+EnsureTheDatabaseFolderIsWritable(
+    builder.Configuration.GetConnectionString("Bookings") ?? DefaultConnectionString);
+
 // The schema and the seeded office are created on start, so the app runs from a clean clone with
 // no migration step. The data is fixed reference data, not something a migration history buys much.
 await using (var scope = app.Services.CreateAsyncScope())
@@ -120,6 +124,17 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 
+// Both, deliberately. MapStaticAssets serves what the build's manifest lists, with fingerprinted
+// names and precompressed variants. In the deployed container that manifest arrived carrying the
+// application's own assets but not the framework's, so _framework/blazor.web.js was neither
+// fingerprinted in the markup nor served at all — leaving a page with no Blazor runtime, which
+// looks like an application that silently refuses to do anything.
+//
+// The cause of the truncated manifest is not established: the same publish, run from the same
+// output on this machine, produces a complete one. UseStaticFiles serves wwwroot from disk
+// regardless of what the manifest says, so a missing entry costs the fingerprint rather than the
+// file. It is redundant when the manifest is whole, which is the point.
+app.UseStaticFiles();
 app.MapStaticAssets();
 
 app.MapPost("/logout", async (HttpContext context) =>
@@ -135,3 +150,44 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+/// <summary>
+/// Fails with something worth reading when the database folder cannot be written to.
+///
+/// SQLite reports this as "SQLite Error 14: unable to open database file", which names neither the
+/// folder nor the reason, and arrives wrapped in a stack trace through three layers of EF Core.
+/// Mounted volumes are the usual cause: several platforms hand them to the container owned by root
+/// while the image runs as somebody else.
+/// </summary>
+static void EnsureTheDatabaseFolderIsWritable(string connectionString)
+{
+    var dataSource = new SqliteConnectionStringBuilder(connectionString).DataSource;
+
+    if (string.IsNullOrWhiteSpace(dataSource) || dataSource.Contains(":memory:"))
+        return;
+
+    var folder = Path.GetDirectoryName(Path.GetFullPath(dataSource));
+
+    if (string.IsNullOrEmpty(folder))
+        return;
+
+    try
+    {
+        Directory.CreateDirectory(folder);
+
+        var probe = Path.Combine(folder, $".write-probe-{Environment.ProcessId}");
+        File.WriteAllText(probe, string.Empty);
+        File.Delete(probe);
+    }
+    catch (Exception denied) when (denied is UnauthorizedAccessException or IOException)
+    {
+        throw new InvalidOperationException(
+            $"The database folder '{folder}' cannot be written to, so the database cannot be created.\n" +
+            $"Running as uid {Environment.UserName}.\n\n" +
+            "A mounted volume is the usual cause: some platforms hand it to the container owned by " +
+            "root while the image runs as a non-root user. On Railway, set RAILWAY_RUN_UID=0. " +
+            "Elsewhere, give the mount to the container's user or point ConnectionStrings__Bookings " +
+            "somewhere writable.",
+            denied);
+    }
+}
