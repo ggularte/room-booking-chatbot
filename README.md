@@ -8,6 +8,134 @@ built for the Promtior technical challenge.
 **Running at <https://room-booking-chatbot-production.up.railway.app>** — sign in as `User1` or
 `User2` with the password from the challenge document.
 
+<details>
+<summary><b>🇪🇸 Leer en español</b></summary>
+
+<br>
+
+## El problema
+
+Un asistente conversacional con llamada a herramientas que permite a un usuario autenticado
+reservar, consultar y cancelar salas de reunión hablando en lenguaje natural.
+
+### Reglas del dominio
+
+- Cinco salas: **A, B, C, D y E**, cada una con su capacidad máxima.
+- Las reservas van en **bloques de 30 minutos**.
+- Los bloques contiguos se pueden combinar en una sola reserva, hasta **3 horas**.
+- Un bloque lo ocupa una sola reserva — sin dobles reservas ni solapamientos. Una reserva de
+  10:00 a 11:30 bloquea cualquier inicio anterior a las 11:30.
+- Toda reserva necesita **título** y **cantidad de asistentes**, que no puede exceder la
+  capacidad de la sala.
+- Dos usuarios, `User1` y `User2`, con una contraseña compartida.
+- Una reserva que ya terminó se rechaza. Esta última no está en el challenge; ver *Supuestos*.
+
+### Las herramientas del asistente
+
+| Herramienta | Para qué |
+|---|---|
+| `create_booking` | Reservar una sala en un rango, con título y asistentes, a nombre del usuario logueado |
+| `list_available_rooms` | Qué salas quedan libres en un rango, y por qué las otras no |
+| `get_room_schedule` | Agenda de una sala bloque por bloque |
+| `cancel_booking` | Cancelar una reserva propia |
+
+La validación —contigüidad, tope de 3 horas, capacidad, solapamientos— la hace la capa de
+reservas, **no el prompt**.
+
+## Cómo correrlo
+
+Necesitás el SDK de .NET 10 y una API key de Groq, que es gratis y no pide tarjeta:
+<https://console.groq.com>.
+
+```bash
+cd src/RoomBooking.Web
+dotnet user-secrets set "Groq:ApiKey" "<tu key>"
+cd ../..
+dotnet run --project src/RoomBooking.Web --launch-profile https
+```
+
+Abrí <https://localhost:7264> y entrá como `User1` o `User2` con la contraseña del documento del
+challenge. La base se crea y se siembra sola en el primer arranque, así que no hay paso de
+migración.
+
+### El notebook
+
+`notebook/technologies.ipynb` explica de qué está hecha la solución y muestra cada pieza
+funcionando, leyendo el código de este repositorio en vez de repetirlo. Va commiteado con sus
+salidas, así que se puede leer sin ejecutarlo.
+
+### Tests
+
+```bash
+dotnet test
+```
+
+Dos tests manejan el modelo real de punta a punta y se saltean si falta `GROQ_API_KEY`, para que
+la suite corra sin conexión. Para que su ausencia sea un error en vez de un salteo, poné
+`REQUIRE_LIVE_TESTS=1`.
+
+## Por qué el notebook es Python y la solución no
+
+El challenge pide un notebook Jupyter. El kernel de C# —.NET Interactive y la extensión Polyglot
+Notebooks— **se deprecó en 2026**: la extensión el 27 de marzo, el runtime el 24 de abril, y el
+repositorio quedó archivado. Un notebook en C# se apoyaría en herramientas sin mantenimiento que
+el evaluador tendría que instalar para poder correrlo.
+
+Por eso la solución es C# y el notebook es Python: documenta la arquitectura, muestra las
+definiciones de herramientas en C# y ejercita el mismo modelo con las mismas definiciones.
+
+## Dónde vive la validación
+
+Las restricciones —contigüidad de bloques, tope de 3 horas, capacidad de sala, rechazo de
+solapamientos— se hacen cumplir en `RoomBooking.Core`, no en el prompt del sistema. Las
+herramientas devuelven errores estructurados y el asistente los comunica. **Un modelo no es una
+capa de validación.**
+
+## Supuestos
+
+**Capacidades de las salas.** El challenge exige que sean específicas por sala pero nunca dice
+los números. Estos son un supuesto, elegidos para que algunas salas queden chicas para una
+reunión normal y otras no — que es lo que hace la regla observable:
+
+| Sala | A | B | C | D | E |
+|---|---|---|---|---|---|
+| Capacidad | 4 | 6 | 8 | 12 | 20 |
+
+Viven en `SeedData.Rooms` y cambiarlas no requiere ninguna otra edición.
+
+**Hasta cuándo se puede reservar.** El challenge no fija horizonte, lo que dejaba el año 9999
+reservable. Se puede reservar hasta un año hacia adelante.
+
+**Largo del título.** La columna declara 200 caracteres y SQLite no hace cumplir los largos
+declarados, así que los títulos eran ilimitados — y vuelven al contexto del asistente en cada
+consulta de agenda. Se valida como regla.
+
+**Reservas en el pasado.** El challenge no las prohíbe, así que una reserva para el martes pasado
+habría sido tan válida como una para mañana. Eso se lee como algo a medio terminar, así que se
+rechazan las que ya **terminaron**, y sólo ésas. Una reunión que empezó hace diez minutos todavía
+vale la pena registrarla.
+
+**Zona horaria.** Una oficina, un reloj de pared. Los horarios se guardan y comparan tal como se
+escriben, sin conversión.
+
+## Desplegar en Railway
+
+Cuatro configuraciones. Ninguna es adivinable a partir del error que te da sin ella, así que van
+con el motivo:
+
+| | |
+|---|---|
+| `Groq__ApiKey` | El doble guión bajo es cómo .NET lee configuración anidada. Sin esto el contenedor aborta al arrancar y lo dice |
+| Volumen en `/data` | Donde vive la base. Sin esto, cada redeploy vacía la oficina |
+| `RAILWAY_RUN_UID=0` | Railway entrega el volumen al contenedor propiedad de `root` mientras esta imagen corre como usuario sin privilegios. Sin esto no puede crear la base |
+| Puerto destino `8080` | Railway inyecta `PORT` y la app escucha en el que le den; 8080 es el que la imagen usa por defecto, así que coinciden |
+
+El autodeploy necesita que la GitHub App de Railway **tenga acceso al repositorio** — autorizarla
+al iniciar sesión no es lo mismo, y sin la instalación Railway reporta *"GitHub Repo not found"* y
+nunca se entera de un push.
+
+</details>
+
 ## The problem
 
 A chatbot with tool-calling capabilities that lets an authenticated user book, inspect
