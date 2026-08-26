@@ -45,12 +45,18 @@
         {
             @if (entry.Tools.Length > 0)
             {
-                <div class="tools">
-                    @foreach (var tool in entry.Tools)
-                    {
-                        <span class="tool">@tool</span>
-                    }
-                </div>
+                @* Folded away by default. Which tools ran is the evidence that the assistant read
+                   the calendar rather than recalled it, so it stays available — but it is a claim
+                   about the machinery, not part of the answer, and it does not belong in the way. *@
+                <details class="trace">
+                    <summary>@ToolCallSummary(entry.Tools.Length)</summary>
+                    <div class="tools">
+                        @foreach (var tool in entry.Tools)
+                        {
+                            <span class="tool">@tool</span>
+                        }
+                    </div>
+                </details>
             }
 
             @if (!string.IsNullOrWhiteSpace(entry.Text))
@@ -70,7 +76,9 @@
 
         @if (busy)
         {
-            <div class="bubble theirs pending">…</div>
+            <div class="bubble theirs pending" role="status" aria-label="The assistant is thinking">
+                <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            </div>
         }
     </div>
 
@@ -97,6 +105,8 @@
     private string? failure;
 
     private sealed record Entry(bool IsUser, string Text, string[] Tools);
+
+    private static string ToolCallSummary(int count) => count == 1 ? "1 tool call" : $"{count} tool calls";
 
     /// <summary>
     /// Flattens the conversation for display, surfacing which tools ran. Showing the tool names is
