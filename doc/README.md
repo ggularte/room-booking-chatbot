@@ -1,8 +1,7 @@
 # Documentation
 
-Required deliverables for the challenge:
-
-- **Project Overview** — how the challenge was approached and solved: implementation
-  logic, key decisions, challenges encountered and how they were overcome.
-- **Component Diagram** — the components involved and how they interact, from the
-  moment a question reaches the chatbot until the response is returned.
+- **[Project overview](project-overview.md)** — how the challenge was approached and solved: the
+  decision the design rests on, the assumptions the challenge left open, and the problems that came
+  up on the way.
+- **[Component diagram](component-diagram.md)** — what the solution is made of, and what happens
+  between a question being asked and an answer appearing.
