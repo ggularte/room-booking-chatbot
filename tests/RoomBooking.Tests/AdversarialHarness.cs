@@ -1,8 +1,6 @@
-using System.ClientModel;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
-using OpenAI;
 using RoomBooking.Agent;
 using RoomBooking.Core.Bookings;
 using RoomBooking.Core.Data;
@@ -43,13 +41,7 @@ public sealed class AdversarialHarness : IDisposable
 
     public BookingAssistant AssistantFor(string userId, string apiKey)
     {
-        var openAi = new OpenAIClient(
-            new ApiKeyCredential(apiKey),
-            new OpenAIClientOptions { Endpoint = new Uri("https://api.groq.com/openai/v1") });
-
-        var chat = new ChatClientBuilder(openAi.GetChatClient(Model).AsIChatClient())
-            .UseFunctionInvocation()
-            .Build();
+        var chat = GroqChatClient.Create(apiKey, Model, new Uri("https://api.groq.com/openai/v1"));
 
         return new BookingAssistant(chat, new BookingTools(Service, new Signed(userId)), new FixedClock(Now));
     }

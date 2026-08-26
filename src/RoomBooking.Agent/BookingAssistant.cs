@@ -1,3 +1,4 @@
+using System.ClientModel;
 using System.Globalization;
 using Microsoft.Extensions.AI;
 
@@ -38,9 +39,34 @@ public sealed class BookingAssistant(IChatClient chat, BookingTools tools, TimeP
         else
             history.Insert(0, instructions);
 
-        var response = await chat.GetResponseAsync(history, _options, ct);
-        history.AddMessages(response);
-        return response;
+        try
+        {
+            var response = await chat.GetResponseAsync(history, _options, ct);
+            history.AddMessages(response);
+            return response;
+        }
+        catch (ClientResultException failure) when (failure.Status == 429)
+        {
+            // The free tier allows a fixed number of tokens per day, and every turn resends the
+            // instructions and the tool definitions, so an afternoon of use reaches it. Left alone
+            // the client retries with a long backoff and the page simply sits there, which reads as
+            // the application being broken rather than the allowance being spent.
+            throw new AssistantUnavailableException(
+                "The assistant has used up its allowance with the model provider for now. " +
+                "It should recover shortly; the booking system itself is unaffected.",
+                failure);
+        }
+        catch (ClientResultException failure)
+        {
+            throw new AssistantUnavailableException(
+                $"The model provider refused the request ({failure.Status}). Please try again.",
+                failure);
+        }
+        catch (Exception failure) when (failure is TaskCanceledException or TimeoutException)
+        {
+            throw new AssistantUnavailableException(
+                "The assistant took too long to answer. Please try again.", failure);
+        }
     }
 
     private string SystemPrompt(string username)

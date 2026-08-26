@@ -138,10 +138,13 @@
         {
             await Assistant.ContinueAsync(history, CurrentUser.Username);
         }
+        catch (AssistantUnavailableException ex)
+        {
+            // Already phrased for a reader; the provider's own wording is about token budgets.
+            failure = ex.Message;
+        }
         catch (Exception ex)
         {
-            // The model provider is the one dependency that can fail in a way the user can do
-            // nothing about. Say so plainly rather than leaving the transcript hanging.
             failure = $"The assistant could not be reached: {ex.Message}";
         }
         finally
