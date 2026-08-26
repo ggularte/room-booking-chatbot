@@ -84,7 +84,10 @@ if (string.IsNullOrWhiteSpace(apiKey))
 builder.Services.AddBookingAssistant(
     apiKey,
     groq["Model"] ?? "openai/gpt-oss-120b",
-    new Uri(groq["Endpoint"] ?? "https://api.groq.com/openai/v1"));
+    new Uri(groq["Endpoint"] ?? "https://api.groq.com/openai/v1"),
+    // The daily allowance is per model, so a second one keeps the assistant answering after the
+    // first has spent its own. Leave it unset to disable the fallback.
+    groq["FallbackModel"]);
 
 var app = builder.Build();
 

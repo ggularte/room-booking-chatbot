@@ -66,6 +66,7 @@ booking layer, not left to the model.
 | Domain and persistence | EF Core 10 + SQLite |
 | AI layer | `Microsoft.Extensions.AI` 10.9 — `IChatClient`, `AIFunctionFactory`, `UseFunctionInvocation()` |
 | Model provider | Groq, through its OpenAI-compatible endpoint |
+| Models | `openai/gpt-oss-120b`, falling back to `openai/gpt-oss-20b` |
 | Web and chat UI | ASP.NET Core 10 + Blazor Server |
 | Tests | xUnit |
 | Notebook | Python |
@@ -79,6 +80,18 @@ on April 24, repository archived), so a C# notebook would rest on unmaintained t
 the reviewer has to install and run. The solution is therefore C#, and the notebook is
 Python: it documents the architecture, shows the C# tool definitions, and exercises the
 deployed API to display real tool-calling traces.
+
+### The daily allowance
+
+Groq's free tier allows a fixed number of tokens per day **per model**, and every turn resends
+the instructions and the five tool definitions, so a day of use reaches it. When the first model
+refuses, the assistant repeats that one call against a second model, which has an allowance of
+its own — the fallback sits beneath the tool-invocation loop, so a refusal arriving after a
+booking has been created cannot cause it to be created twice.
+
+If both are spent, the chat says so in a sentence and notes that the bookings themselves are
+unaffected, rather than leaving a request pending while the client waits out a Retry-After
+measured in minutes. Set `Groq:FallbackModel` to empty to disable the fallback.
 
 ### Where validation lives
 

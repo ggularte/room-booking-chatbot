@@ -1,6 +1,7 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace RoomBooking.Agent;
 
@@ -12,9 +13,15 @@ public static class AgentServiceCollectionExtensions
     /// and swapping in OpenAI or any other compatible provider is a configuration change.
     /// </summary>
     public static IServiceCollection AddBookingAssistant(
-        this IServiceCollection services, string apiKey, string model, Uri endpoint)
+        this IServiceCollection services,
+        string apiKey,
+        string model,
+        Uri endpoint,
+        string? fallbackModel = null)
     {
-        services.AddSingleton(_ => GroqChatClient.Create(apiKey, model, endpoint));
+        services.AddSingleton(provider => GroqChatClient.Create(
+            apiKey, model, endpoint, fallbackModel,
+            provider.GetService<ILoggerFactory>()));
 
         services.AddScoped<BookingTools>();
         services.AddScoped<BookingAssistant>();

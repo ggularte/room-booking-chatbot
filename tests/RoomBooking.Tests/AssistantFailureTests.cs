@@ -1,5 +1,4 @@
 using System.ClientModel;
-using System.ClientModel.Primitives;
 using Microsoft.Extensions.AI;
 using RoomBooking.Agent;
 
@@ -43,12 +42,11 @@ public class AssistantFailureTests
             () => assistant.ContinueAsync([new ChatMessage(ChatRole.User, "hello")], "User1"));
     }
 
-    private static ClientResultException Rejected(int status) => new(new StubResponse(status));
 
     [Fact]
     public async Task A_spent_allowance_is_explained_without_jargon()
     {
-        var failure = await Failure(Rejected(429));
+        var failure = await Failure(Rejected.With(429));
 
         Assert.Contains("allowance", failure.Message, StringComparison.OrdinalIgnoreCase);
 
@@ -62,7 +60,7 @@ public class AssistantFailureTests
     [InlineData(503)]
     public async Task Other_refusals_are_reported_as_such(int status)
     {
-        var failure = await Failure(Rejected(status));
+        var failure = await Failure(Rejected.With(status));
         Assert.Contains("refused the request", failure.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -76,29 +74,9 @@ public class AssistantFailureTests
     [Fact]
     public async Task The_original_failure_is_kept_for_the_logs()
     {
-        var thrown = Rejected(429);
+        var thrown = Rejected.With(429);
         var failure = await Failure(thrown);
         Assert.Same(thrown, failure.InnerException);
     }
 
-    private sealed class StubResponse(int status) : PipelineResponse
-    {
-        public override int Status => status;
-        public override string ReasonPhrase => "stubbed";
-        public override Stream? ContentStream { get; set; }
-        public override BinaryData Content => BinaryData.FromString("");
-        protected override PipelineResponseHeaders HeadersCore { get; } = new StubHeaders();
-        public override BinaryData BufferContent(CancellationToken ct = default) => Content;
-        public override ValueTask<BinaryData> BufferContentAsync(CancellationToken ct = default) =>
-            ValueTask.FromResult(Content);
-        public override void Dispose() { }
-
-        private sealed class StubHeaders : PipelineResponseHeaders
-        {
-            public override IEnumerator<KeyValuePair<string, string>> GetEnumerator() =>
-                Enumerable.Empty<KeyValuePair<string, string>>().GetEnumerator();
-            public override bool TryGetValue(string name, out string? value) { value = null; return false; }
-            public override bool TryGetValues(string name, out IEnumerable<string>? values) { values = null; return false; }
-        }
-    }
 }
