@@ -36,33 +36,46 @@ public sealed class BookingTools(BookingService service, IUserContext user)
             : new CreateBookingResponse(false, null, result.Errors.Select(Describe).ToArray());
     }
 
-    [Description("List the meeting rooms that are completely free across a time range, optionally only those large enough for a given number of people.")]
-    public async Task<AvailableRoomResponse[]> ListAvailableRoomsAsync(
+    [Description("List the meeting rooms that are completely free across a time range, optionally only those large enough for a given number of people. Returns the problems found if the range could not be read.")]
+    public async Task<AvailabilityResponse> ListAvailableRoomsAsync(
         [Description("Start of the range in the office's local time, as 2026-09-01T10:00:00.")] string start,
         [Description("End of the range, in the same format.")] string end,
         [Description("Only return rooms holding at least this many people. Omit if the group size is unknown.")] int? minimumCapacity = null,
         CancellationToken ct = default)
     {
-        if (!TryReadMoment(start, out var from) || !TryReadMoment(end, out var to))
-            return [];
+        // Refused in words rather than as an empty list: nothing free and never looked are
+        // different answers, and only one of them may be reported to the user as fact.
+        if (!TryReadMoment(start, out var from))
+            return new AvailabilityResponse([], [NotAMoment(nameof(start), start)]);
+
+        if (!TryReadMoment(end, out var to))
+            return new AvailabilityResponse([], [NotAMoment(nameof(end), end)]);
 
         var rooms = await service.ListAvailableRoomsAsync(from, to, minimumCapacity, ct);
-        return rooms.Select(r => new AvailableRoomResponse(r.RoomId, r.Capacity, r.IsFree)).ToArray();
+        return new AvailabilityResponse(
+            rooms.Select(r => new AvailableRoomResponse(r.RoomId, r.Capacity, r.IsFree)).ToArray(), []);
     }
 
-    [Description("Show a room's schedule slot by slot over a range, marking which 30-minute slots are free and which are taken.")]
-    public async Task<RoomScheduleResponse?> GetRoomScheduleAsync(
+    [Description("Show a room's schedule slot by slot over a range, marking which 30-minute slots are free and which are taken. Returns the problems found if the room or the range could not be read.")]
+    public async Task<RoomScheduleResponse> GetRoomScheduleAsync(
         [Description("Room letter: A, B, C, D or E.")] string roomId,
         [Description("Start of the range in the office's local time, as 2026-09-01T10:00:00.")] string from,
         [Description("End of the range, in the same format.")] string to,
         CancellationToken ct = default)
     {
-        if (!TryReadMoment(from, out var windowStart) || !TryReadMoment(to, out var windowEnd))
-            return null;
+        var room = NormalizeRoom(roomId);
 
-        var schedule = await service.GetRoomScheduleAsync(NormalizeRoom(roomId), windowStart, windowEnd, ct);
+        // As above: an empty schedule and a request that was never carried out must not arrive
+        // looking alike.
+        if (!TryReadMoment(from, out var windowStart))
+            return NoSchedule(room, NotAMoment(nameof(from), from));
+
+        if (!TryReadMoment(to, out var windowEnd))
+            return NoSchedule(room, NotAMoment(nameof(to), to));
+
+        var schedule = await service.GetRoomScheduleAsync(room, windowStart, windowEnd, ct);
         if (schedule is null)
-            return null;
+            return NoSchedule(room, Describe(BookingError.RoomNotFound));
 
         var slots = schedule.Slots
             .Select(s => new ScheduleSlotResponse(
@@ -73,7 +86,7 @@ public sealed class BookingTools(BookingService service, IUserContext user)
                 s.BookedByUserId == user.UserId))
             .ToArray();
 
-        return new RoomScheduleResponse(schedule.RoomId, schedule.Capacity, slots);
+        return new RoomScheduleResponse(schedule.RoomId, schedule.Capacity, slots, []);
     }
 
     [Description("Cancel one of the signed-in user's own bookings. Call list_my_bookings first to find its id.")]
@@ -128,6 +141,9 @@ public sealed class BookingTools(BookingService service, IUserContext user)
         moment = DateTime.SpecifyKind(parsed, DateTimeKind.Unspecified);
         return true;
     }
+
+    private static RoomScheduleResponse NoSchedule(string roomId, string problem) =>
+        new(roomId, 0, [], [problem]);
 
     private static string NotAMoment(string field, string? value) =>
         $"The {field} '{value}' is not a real date and time. Use the form 2026-09-01T10:00:00.";

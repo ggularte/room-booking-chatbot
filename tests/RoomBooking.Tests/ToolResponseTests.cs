@@ -70,7 +70,7 @@ public class ToolResponseTests
         var schedule = await tools.GetRoomScheduleAsync("C", "2026-09-02T10:00:00", "2026-09-02T11:00:00");
 
         // An hour is two slots.
-        Assert.Equal(2, schedule!.Slots.Length);
+        Assert.Equal(2, schedule.Slots.Length);
         Assert.All(schedule.Slots, slot =>
         {
             Assert.False(slot.IsAvailable);
@@ -95,6 +95,49 @@ public class ToolResponseTests
 
         Assert.False(result.Success);
         Assert.Contains(result.Problems, p => p.Contains("not a real date", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // Reading the calendar is where a silent refusal does the most damage: an empty answer reads as
+    // "nothing is free" or "no such room", and the assistant passes that on as fact.
+
+    [Theory]
+    [InlineData("2026-09-34T10:00:00", "2026-09-02T11:00:00")]
+    [InlineData("2026-09-02T10:00:00", "the day after tomorrow")]
+    public async Task An_unreadable_range_stops_the_availability_search(string start, string end)
+    {
+        var result = await Tools().ListAvailableRoomsAsync(start, end);
+
+        Assert.Empty(result.Rooms);
+        Assert.Contains(result.Problems, p => p.Contains("not a real date", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task An_availability_search_that_ran_carries_no_problems()
+    {
+        var result = await Tools().ListAvailableRoomsAsync("2026-09-02T10:00:00", "2026-09-02T11:00:00");
+
+        Assert.NotEmpty(result.Rooms);
+        Assert.Empty(result.Problems);
+    }
+
+    [Theory]
+    [InlineData("2026-09-34T10:00:00", "2026-09-02T11:00:00")]
+    [InlineData("2026-09-02T10:00:00", "")]
+    public async Task An_unreadable_range_stops_the_schedule_lookup(string from, string to)
+    {
+        var schedule = await Tools().GetRoomScheduleAsync("C", from, to);
+
+        Assert.Empty(schedule.Slots);
+        Assert.Contains(schedule.Problems, p => p.Contains("not a real date", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task An_unknown_room_says_so_rather_than_returning_nothing()
+    {
+        var schedule = await Tools().GetRoomScheduleAsync("Z", "2026-09-02T10:00:00", "2026-09-02T11:00:00");
+
+        Assert.Empty(schedule.Slots);
+        Assert.Contains(schedule.Problems, p => p.Contains("no such room", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

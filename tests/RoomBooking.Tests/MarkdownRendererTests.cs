@@ -45,6 +45,41 @@ public class MarkdownRendererTests
         Assert.DoesNotContain("data:", html, StringComparison.OrdinalIgnoreCase);
     }
 
+    // A link needs no scheme of its own to leave the origin: the browser lends it the page's.
+
+    [Theory]
+    [InlineData("[click](//evil.example/steal)")]
+    // Four backslashes so that CommonMark's own escaping leaves two in the destination.
+    [InlineData(@"[click](\\\\evil.example/steal)")]
+    [InlineData(@"[click](/\evil.example/steal)")]
+    [InlineData("![img](//evil.example/track.png)")]
+    public void Drops_link_targets_that_leave_the_origin_without_a_scheme(string hostile)
+    {
+        Assert.DoesNotContain("evil.example", Render(hostile));
+    }
+
+    // Autolinks are a different node from bracket links, and were rendered without being asked.
+
+    [Theory]
+    [InlineData("<javascript:alert(1)>")]
+    [InlineData("<vbscript:msgbox(1)>")]
+    [InlineData("<data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==>")]
+    public void Drops_autolinks_that_are_not_a_safe_scheme(string hostile)
+    {
+        var html = Render(hostile);
+
+        Assert.DoesNotContain("<a ", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("href", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("<https://example.com>", "https://example.com")]
+    [InlineData("<someone@example.com>", "mailto:someone@example.com")]
+    public void Keeps_ordinary_autolinks(string markdown, string expected)
+    {
+        Assert.Contains($"href=\"{expected}\"", Render(markdown));
+    }
+
     [Theory]
     [InlineData("[docs](https://example.com)", "https://example.com")]
     [InlineData("[mail](mailto:someone@example.com)", "mailto:someone@example.com")]

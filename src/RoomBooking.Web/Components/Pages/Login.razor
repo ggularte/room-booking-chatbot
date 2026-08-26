@@ -42,6 +42,8 @@
     // [SupplyParameterFromForm] property with null (BL0008).
     [SupplyParameterFromForm] private LoginInput? Input { get; set; }
 
+    [SupplyParameterFromQuery(Name = "returnUrl")] private string? ReturnUrlFromQuery { get; set; }
+
     private string? error;
 
     protected override void OnInitialized() => Input ??= new LoginInput();
@@ -68,8 +70,9 @@
             CookieAuthenticationDefaults.AuthenticationScheme,
             new ClaimsPrincipal(identity));
 
-        Navigation.NavigateTo("/", forceLoad: true);
+        Navigation.NavigateTo(ReturnUrl.Safe(ReturnUrlFromQuery), forceLoad: true);
     }
+
 
     private sealed class LoginInput
     {

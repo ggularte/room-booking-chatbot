@@ -1,6 +1,7 @@
 using System.ClientModel;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenAI;
 
 namespace RoomBooking.Agent;
@@ -28,14 +29,8 @@ public static class AgentServiceCollectionExtensions
 
         services.AddScoped<BookingTools>();
         services.AddScoped<BookingAssistant>();
-        services.TryAddSingletonTimeProvider();
+        services.TryAddSingleton(TimeProvider.System);
 
         return services;
-    }
-
-    private static void TryAddSingletonTimeProvider(this IServiceCollection services)
-    {
-        if (services.All(d => d.ServiceType != typeof(TimeProvider)))
-            services.AddSingleton(TimeProvider.System);
     }
 }

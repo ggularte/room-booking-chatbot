@@ -11,6 +11,12 @@
 
 <PageTitle>Meeting rooms</PageTitle>
 
+@* Materialised once: the projection is read twice below, and the composer re-renders the page on
+   every keystroke, so leaving it lazy rebuilds every entry twice per character typed. *@
+@{
+    var rendered = Rendered();
+}
+
 <div class="chat">
     <header>
         <div>
@@ -27,7 +33,7 @@
     </header>
 
     <div class="transcript">
-        @if (!Rendered.Any())
+        @if (rendered.Count == 0)
         {
             <p class="muted empty">
                 Ask for a room. For example: &ldquo;which rooms are free tomorrow between 10 and 11?&rdquo;
@@ -35,7 +41,7 @@
             </p>
         }
 
-        @foreach (var entry in Rendered)
+        @foreach (var entry in rendered)
         {
             @if (entry.Tools.Length > 0)
             {
@@ -97,13 +103,14 @@
     /// deliberate: it is the difference between the assistant reporting the calendar and appearing
     /// to know it.
     /// </summary>
-    private IEnumerable<Entry> Rendered => history
+    private List<Entry> Rendered() => history
         .Where(m => m.Role != ChatRole.System && m.Role != ChatRole.Tool)
         .Select(m => new Entry(
             m.Role == ChatRole.User,
             m.Text ?? string.Empty,
             m.Contents.OfType<FunctionCallContent>().Select(c => c.Name).ToArray()))
-        .Where(e => !string.IsNullOrWhiteSpace(e.Text) || e.Tools.Length > 0);
+        .Where(e => !string.IsNullOrWhiteSpace(e.Text) || e.Tools.Length > 0)
+        .ToList();
 
     protected override async Task OnInitializedAsync()
     {

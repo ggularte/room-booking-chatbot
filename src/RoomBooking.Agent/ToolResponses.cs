@@ -22,8 +22,19 @@ public sealed record CancelBookingResponse(bool Success, string? Problem);
 
 public sealed record AvailableRoomResponse(string RoomId, int Capacity, bool IsFree);
 
+/// <summary>
+/// Carries the problems alongside the rooms so that a request the tool refused to carry out cannot
+/// be mistaken for a calendar with nothing free in it.
+/// </summary>
+public sealed record AvailabilityResponse(AvailableRoomResponse[] Rooms, string[] Problems);
+
 public sealed record ScheduleSlotResponse(string Start, string End, bool IsAvailable, string? Title, bool IsMine);
 
-public sealed record RoomScheduleResponse(string RoomId, int Capacity, ScheduleSlotResponse[] Slots);
+/// <summary>
+/// Problems for the same reason: an unreadable range and an unknown room are both refusals, and
+/// neither may reach the user as a room with an empty diary.
+/// </summary>
+public sealed record RoomScheduleResponse(
+    string RoomId, int Capacity, ScheduleSlotResponse[] Slots, string[] Problems);
 
 public sealed record MyBookingResponse(string BookingId, string RoomId, string Title, string Start, string End, int Attendees);
